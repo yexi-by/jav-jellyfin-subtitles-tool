@@ -1,0 +1,18 @@
+JAV Jellyfin Subtitles Tool 随包依赖
+
+AngleSharp 1.8.3 用于解析 SubtitleCat 网页。
+Copyright 2013-2026, AngleSharp. MIT License。
+源码：https://github.com/AngleSharp/AngleSharp/tree/e1b55c551fc74b7dde7ba1ee50c2703608da4e7f
+许可全文：third-party/AngleSharp-MIT.txt
+
+UTF.Unknown 2.7.0 用于识别字幕原始编码。
+源码：https://github.com/CharsetDetector/UTF-unknown/tree/fd4c6fab634ef3783f8b5cb88e9ae9b2cc295ad5
+上游源码采用 MPL 1.1 / GPL 2.0 or later / LGPL 2.1 or later 多重许可；本项目保留原始程序集及所有许可选项。
+许可全文：third-party/UTF.Unknown-MPL-1.1.txt、UTF.Unknown-GPL-2.0.txt、UTF.Unknown-LGPL-2.1.txt
+
+hls.js 1.7.3 用于校准面板的视频预览，代码按需加载。
+Copyright (c) 2017 Dailymotion；包含 Copyright (c) 2013-2015 Brightcove 的代码。
+源码：https://github.com/video-dev/hls.js/tree/v1.7.3
+Apache License 2.0。原始声明：third-party/hls.js-NOTICE.txt；许可全文：third-party/Apache-2.0.txt
+
+上述依赖均未修改。项目自身的许可见 LICENSE。

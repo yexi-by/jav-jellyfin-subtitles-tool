@@ -42,7 +42,7 @@ jobs:
           $manifest = Get-Content artifacts/manifest.json -Raw | ConvertFrom-Json
           $version = $manifest[0].versions[0].version
           if ($env:GITHUB_REF_NAME -ne "v$version") { throw '标签与插件版本不一致' }
-          gh release create $env:GITHUB_REF_NAME "artifacts/Jellyfin.Plugin.SubtitlesTool_$version.zip" --title $env:GITHUB_REF_NAME --generate-notes
+          gh release create $env:GITHUB_REF_NAME "artifacts/jav-jellyfin-subtitles-tool_$version.zip" --title $env:GITHUB_REF_NAME --generate-notes
           if ($LASTEXITCODE -ne 0) { throw 'Release 发布失败' }
           git fetch origin main
           git checkout -B main origin/main

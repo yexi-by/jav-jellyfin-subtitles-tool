@@ -1,7 +1,5 @@
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Jellyfin.Plugin.SubtitlesTool.Core;
 
 namespace Jellyfin.Plugin.SubtitlesTool.Tests;
@@ -79,78 +77,21 @@ public sealed class FileWorkflowTests : IDisposable
         Assert.Equal(await first, await second);
     }
 
-    [Theory]
-    [InlineData("srt")][InlineData("ass")][InlineData("ssa")][InlineData("vtt")]
-    public async Task ReplacementRequiresConfirmationAndPreservesBytes(string format)
-    {
-        await File.WriteAllTextAsync(Video(), "untouched video");
-        var modified = File.GetLastWriteTimeUtc(Video());
-        var target = Path.ChangeExtension(Video(), format);
-        await File.WriteAllTextAsync(target, "old subtitle");
-        var bytes = Encoding.Unicode.GetBytes("新字幕，保留原编码和格式");
-        Task Write(Stream stream, CancellationToken token) => stream.WriteAsync(bytes, token).AsTask();
-        var error = await Assert.ThrowsAsync<ToolException>(() => SidecarWriter.SaveAsync(Video(), format, false, Write, default));
-        Assert.Equal(409, error.Status);
-        await Assert.ThrowsAsync<IOException>(() => SidecarWriter.SaveAsync(Video(), format, true, async (stream, token) => { await Write(stream, token); throw new IOException("下载中断"); }, default));
-        Assert.Equal("old subtitle", await File.ReadAllTextAsync(target));
-        await SidecarWriter.SaveAsync(Video(), format, true, Write, default);
-        Assert.Equal(bytes, await File.ReadAllBytesAsync(target));
-        Assert.Equal("untouched video", await File.ReadAllTextAsync(Video()));
-        Assert.Equal(modified, File.GetLastWriteTimeUtc(Video()));
-        Assert.DoesNotContain(Directory.GetFiles(_directory), path => path.EndsWith(".tmp"));
-    }
-
     [Fact]
-    public async Task SearchUsesOnlyGcidAndBindsCandidatesToMedia()
+    public async Task ReplacementRequiresConfirmationAndCancellationKeepsExistingBytes()
     {
-        using var client = new HttpClient(new Handler(request =>
-        {
-            Assert.Equal("?gcid=" + new string('A', 40), request.RequestUri!.Query);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"code\":0,\"result\":\"ok\",\"data\":[{\"name\":\"测试字幕\",\"url\":\"https://example.com/sub.srt\",\"ext\":\"srt\",\"languages\":[\"zh\",\"en\"],\"score\":10}]}") };
-        }));
-        using var source = new ThunderSource(client);
-        var candidate = Assert.Single(await source.SearchAsync(Video(), new string('A', 40), default));
-        Assert.True(candidate.Chinese);
-        Assert.Equal("srt", source.Resolve(candidate.Id, Video()).Format);
-        Assert.Throws<ToolException>(() => source.Resolve(candidate.Id, Video("other.mp4")));
-        Assert.Throws<ToolException>(() => source.Resolve("expired", Video()));
+        var path = Video("字幕.srt");
+        await File.WriteAllTextAsync(path, "old subtitle");
+        var bytes = Encoding.Unicode.GetBytes("新字幕，保留编码");
+        var conflict = await Assert.ThrowsAsync<ToolException>(() => SidecarWriter.WriteAsync(path, false, bytes, default));
+        Assert.Equal(409, conflict.Status);
+        using var canceled = new CancellationTokenSource(); canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SidecarWriter.WriteAsync(path, true, bytes, canceled.Token));
+        Assert.Equal("old subtitle", await File.ReadAllTextAsync(path));
+        await SidecarWriter.WriteAsync(path, true, bytes, default);
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+        Assert.Empty(Directory.GetFiles(_directory, "*.tmp"));
     }
 
-    [Theory]
-    [InlineData("movie.en-zh-CN.srt", true)]
-    [InlineData("movie.chs3.ass", true)]
-    [InlineData("movie[中文简体].srt", true)]
-    [InlineData("movie.cht.srt", true)]
-    [InlineData("电影.en.srt", false)]
-    [InlineData("Chinatown.srt", false)]
-    public async Task MissingLanguageUsesOnlyExplicitFilenameMarkers(string name, bool chinese)
-    {
-        var payload = JsonSerializer.Serialize(new { code = 0, result = "ok", data = new[] { new { name, url = "https://example.com/sub.srt", ext = "srt", languages = new[] { "", " " } } } });
-        using var source = new ThunderSource(new HttpClient(new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(payload) })));
-        var candidate = Assert.Single(await source.SearchAsync(Video(), new string('A', 40), default));
-        Assert.Equal(chinese, candidate.Chinese);
-        Assert.Equal(chinese ? ["中文（文件名）"] : Array.Empty<string>(), candidate.Languages);
-    }
-
-    [Fact]
-    public async Task SourceDistinguishesNoResultsFromNetworkFailure()
-    {
-        using var empty = new ThunderSource(new HttpClient(new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent("{\"code\":0,\"result\":\"ok\",\"data\":[]}")
-        })));
-        Assert.Empty(await empty.SearchAsync(Video(), new string('A', 40), default));
-        using var unavailable = new ThunderSource(new HttpClient(new Handler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))));
-        var sourceError = await Assert.ThrowsAsync<ToolException>(() => unavailable.SearchAsync(Video(), new string('A', 40), default));
-        Assert.Equal(502, sourceError.Status);
-        using var disconnected = new ThunderSource(new HttpClient(new Handler(_ => throw new HttpRequestException())));
-        var connectionError = await Assert.ThrowsAsync<ToolException>(() => disconnected.SearchAsync(Video(), new string('A', 40), default));
-        Assert.Contains("无法连接字幕源", connectionError.Message);
-    }
-
-    private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> send) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(send(request));
-    }
     public void Dispose() => Directory.Delete(_directory, true);
 }

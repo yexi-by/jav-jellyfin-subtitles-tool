@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><title>JAV Subtitles Tool</title></head><body>
+<div id="javSubtitlesConfig" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea">
+    <div data-role="content"><div class="content-primary">
+        <form id="javSubtitlesConfigForm">
+            <h2>JAV Subtitles Tool</h2>
+            <div class="inputContainer">
+                <label class="inputLabel" for="javMediaRoots">处理路径</label>
+                <textarea is="emby-textarea" id="javMediaRoots" rows="5" placeholder="/media/JAV"></textarea>
+                <div class="fieldDescription">每行填写一个 Jellyfin 服务器内的媒体根目录。Docker 部署请填写容器内路径。详情页入口、分段搜索和指纹计划任务都使用这些路径；留空时暂停处理媒体。</div>
+            </div>
+            <p>迅雷展示全部候选；SubtitleCat 在搜索面板单独选择语言。字幕下载后可打开校准面板，对齐并保存。</p>
+            <button is="emby-button" type="submit" class="raised button-submit block"><span>保存设置</span></button>
+        </form>
+    </div></div>
+    <script>
+        var javPluginId = 'c4b75732-8527-4f58-9cdf-18efca21a9e5';
+        document.querySelector('#javSubtitlesConfig').addEventListener('viewshow', function () {
+            ApiClient.getPluginConfiguration(javPluginId).then(function (config) {
+                document.querySelector('#javMediaRoots').value = (config.MediaRoots || []).join('\n');
+            });
+        });
+        document.querySelector('#javSubtitlesConfigForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            ApiClient.getPluginConfiguration(javPluginId).then(function (config) {
+                config.MediaRoots = document.querySelector('#javMediaRoots').value.split(/\r?\n/).map(function (value) { return value.trim(); }).filter(Boolean);
+                return ApiClient.updatePluginConfiguration(javPluginId, config);
+            }).then(Dashboard.processPluginConfigurationUpdateResult);
+        });
+    </script>
+</div>
+</body></html>

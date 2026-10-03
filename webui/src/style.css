@@ -18,9 +18,9 @@ dialog {
     padding: 0;
     color: var(--text);
     background: var(--surface);
-    width: min(920px, calc(100vw - 48px));
+    width: min(1080px, calc(100vw - 48px));
     max-width: none;
-    height: min(780px, calc(100dvh - 64px));
+    height: min(900px, calc(100dvh - 48px));
     max-height: none;
     box-shadow: 0 24px 90px #0008;
     overflow: hidden
@@ -126,11 +126,7 @@ button:disabled {
     flex-wrap: wrap
 }
 
-.toolbar .retry {
-    margin-left: auto
-}
-
-.filter[aria-pressed=true] {
+.part[aria-pressed=true] {
     background: #00a4dc25;
     border-color: var(--accent);
     color: #72d7fa
@@ -242,14 +238,45 @@ progress[hidden] {
     overflow-wrap: anywhere
 }
 
-.footnote {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 16px
+input, select, textarea { font: inherit; color: var(--text); background: #222731; border: 1px solid #ffffff30; border-radius: 8px; padding: 10px 12px; min-height: 44px; max-width: 100%; }
+input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); min-width: 0; }
+.field-label input, .field-label select { font-size: 15px; }
+.grow { flex: 1; }
+.target-toolbar { padding-bottom: 8px; }
+.target-toolbar .field-label { flex: 1; }
+.target-toolbar > button { align-self: flex-end; }
+.parts { display: flex; gap: 8px; padding: 4px 28px 8px; overflow-x: auto; flex: none; }
+.parts button { flex: none; font-size: 14px; }
+.search-toolbar { align-items: flex-end; padding-top: 8px; padding-bottom: 8px; }
+.compact { padding-top: 0; padding-bottom: 10px; justify-content: space-between; }
+.source-filter { flex-direction: row; align-items: center; }
+.source-status { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.source-status p { margin: 4px 0; font-size: 13px; }
+.error-text { color: #ffb4ab; }
+.section-title { font-size: 15px; margin: 12px 0; }
+.saved-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; }
+.saved-row span { overflow-wrap: anywhere; min-width: 0; font-size: 14px; }
+.saved-row button { flex: none; }
+.calibration { width: min(1240px, calc(100vw - 48px)); }
+.calibration-body { padding: 20px 28px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr); gap: 24px; overflow: auto; min-height: 0; }
+.video-box { position: relative; background: #000; align-self: start; border-radius: 10px; overflow: hidden; }
+.video-box video { width: 100%; max-height: 65dvh; display: block; min-height: 180px; }
+.caption-overlay { position: absolute; bottom: 16%; left: 4%; width: 92%; pointer-events: none; text-align: center; color: #fff; white-space: pre-line; font: 600 clamp(16px, 1.8vw, 24px)/1.4 sans-serif; text-shadow: 0 1px 3px #000, 1px 0 3px #000, -1px 0 3px #000; }
+.calibration-controls { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cue-list { width: 100%; font-size: 13px; min-height: 180px; }
+.cue-list option { padding: 5px; }
+.cue-text { white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; background: #ffffff08; padding: 10px; border-radius: 8px; min-height: 52px; max-height: 150px; overflow: auto; }
+.adjust { display: flex; flex-wrap: wrap; gap: 8px; }
+.adjust button { flex: 1; font-size: 14px; }
+
+@media(max-width:900px) {
+    .calibration-body { grid-template-columns: minmax(0, 1fr); }
+    .video-box video { max-height: 42dvh; }
 }
 
 @media(max-width:600px) {
-    dialog {
+    dialog, dialog.calibration {
         width: 100vw;
         height: 100dvh;
         margin: 0;
@@ -269,6 +296,15 @@ progress[hidden] {
     .toolbar {
         padding: 14px 18px
     }
+
+    .search-toolbar { padding-top: 6px; padding-bottom: 8px; }
+    .search-toolbar .grow { flex-basis: 100%; }
+    .search-toolbar .field-label:not(.grow) { flex: 1; }
+    .compact { padding-top: 0; padding-bottom: 8px; }
+    .compact > button { width: 100%; }
+    .parts { padding-left: 18px; padding-right: 18px; }
+    .source-filter { width: 100%; justify-content: space-between; }
+    .calibration-body { padding: 12px 18px 24px; gap: 12px; }
 
     .status {
         padding: 0 18px 12px

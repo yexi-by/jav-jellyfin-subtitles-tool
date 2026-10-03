@@ -12,9 +12,7 @@ public sealed class AuthorizationTests
     [Fact]
     public async Task MissingAuthenticatedUserCannotFallBackToUnrestrictedLibraryAccess()
     {
-        using var hashes = new HashRecords();
-        using var source = new ThunderSource(new HttpClient());
-        var controller = new SubtitlesController(null!, null!, null!, hashes, source, NullLogger<SubtitlesController>.Instance, new MissingUserContext())
+        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -31,19 +29,17 @@ public sealed class AuthorizationTests
     [Fact]
     public async Task SearchErrorCanBeSentAfterProgressHasStartedTheResponse()
     {
-        using var hashes = new HashRecords();
-        using var source = new ThunderSource(new HttpClient());
         var context = new DefaultHttpContext();
         var headers = new HeaderDictionary { ["Content-Type"] = "application/x-ndjson; charset=utf-8" };
         headers.IsReadOnly = true;
         context.Features.Set<IHttpResponseFeature>(new StartedResponse { Headers = headers });
         using var body = new MemoryStream();
         context.Response.Body = body;
-        var controller = new SubtitlesController(null!, null!, null!, hashes, source, NullLogger<SubtitlesController>.Instance, new MissingUserContext())
+        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext())
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };
-        await controller.Search(Guid.NewGuid(), new SubtitlesController.SearchRequest(null), default);
+        await controller.Search(Guid.NewGuid(), new SubtitlesController.SearchRequest(Guid.Empty, "ABC-123"), default);
         Assert.Contains("\"type\":\"error\"", System.Text.Encoding.UTF8.GetString(body.ToArray()));
     }
 

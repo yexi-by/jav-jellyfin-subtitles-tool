@@ -13,9 +13,13 @@ public sealed class WebIntegration(IServerConfigurationManager configuration) : 
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
     {
         var assembly = typeof(Plugin).Assembly;
-        using var resource = assembly.GetManifestResourceStream("SubtitlesTool.Script") ?? throw new InvalidOperationException("缺少前端资源。");
-        using var reader = new StreamReader(resource);
-        var script = reader.ReadToEnd();
+        var assets = assembly.GetManifestResourceNames().Where(name => name.StartsWith("SubtitlesTool.", StringComparison.Ordinal) && name.EndsWith(".js", StringComparison.Ordinal))
+            .ToDictionary(name => name["SubtitlesTool.".Length..], name =>
+            {
+                using var reader = new StreamReader(assembly.GetManifestResourceStream(name)!);
+                return Encoding.UTF8.GetBytes(reader.ReadToEnd());
+            }, StringComparer.Ordinal);
+        if (!assets.ContainsKey("subtitles-tool.js")) throw new InvalidOperationException("缺少前端资源。");
         var version = assembly.GetName().Version!.ToString();
         app.Use(async (context, following) =>
         {
@@ -23,12 +27,15 @@ public sealed class WebIntegration(IServerConfigurationManager configuration) : 
             var path = context.Request.Path.Value ?? "";
             if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method)) { await following(); return; }
             if (path == baseUrl + "/web") { context.Response.Redirect(baseUrl + "/web/"); return; }
-            if (path == baseUrl + "/SubtitlesTool/ui.js")
+            var assetPrefix = baseUrl + "/SubtitlesTool/";
+            var assetName = path.StartsWith(assetPrefix, StringComparison.Ordinal) ? path[assetPrefix.Length..] : "";
+            if (assetName == "ui.js") assetName = "subtitles-tool.js";
+            if (assets.TryGetValue(assetName, out var asset))
             {
                 context.Response.ContentType = "text/javascript; charset=utf-8";
                 context.Response.Headers.CacheControl = "public, max-age=3600";
-                context.Response.ContentLength = Encoding.UTF8.GetByteCount(script);
-                if (HttpMethods.IsGet(context.Request.Method)) await context.Response.WriteAsync(script, context.RequestAborted);
+                context.Response.ContentLength = asset.Length;
+                if (HttpMethods.IsGet(context.Request.Method)) await context.Response.Body.WriteAsync(asset, context.RequestAborted);
                 return;
             }
             if (path != baseUrl + "/web/index.html" && path != baseUrl + "/web/") { await following(); return; }
@@ -38,7 +45,7 @@ public sealed class WebIntegration(IServerConfigurationManager configuration) : 
             var marker = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
             if (marker < 0) { await following(); return; }
             var url = System.Net.WebUtility.HtmlEncode(baseUrl + "/SubtitlesTool/ui.js?v=" + version);
-            html = html.Insert(marker, $"<script defer src=\"{url}\"></script>");
+            html = html.Insert(marker, $"<script type=\"module\" src=\"{url}\"></script>");
             context.Response.ContentType = "text/html; charset=utf-8";
             context.Response.Headers.CacheControl = "no-cache, no-store";
             context.Response.ContentLength = Encoding.UTF8.GetByteCount(html);

@@ -1,9 +1,21 @@
 {
-  "name": "jellyfin-subtitles-tool-webui",
+  "name": "jav-jellyfin-subtitles-tool-webui",
   "private": true,
-  "version": "0.2.0.0",
+  "version": "0.3.0.0",
   "type": "module",
   "packageManager": "pnpm@12.3.4",
-  "scripts": {"check": "tsc --noEmit", "test": "vitest run", "build": "vite build"},
-  "devDependencies": {"typescript": "7.0.2", "vite": "8.2.2", "vitest": "5.0.0", "@types/node": "24.10.1"}
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
+  },
+  "dependencies": {
+    "hls.js": "1.7.3"
+  }
 }

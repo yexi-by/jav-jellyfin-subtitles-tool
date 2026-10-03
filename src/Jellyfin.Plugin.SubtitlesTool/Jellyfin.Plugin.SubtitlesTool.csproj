@@ -4,12 +4,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.2.0.0</Version>
+    <Version>0.3.0.0</Version>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Jellyfin.Controller" Version="10.11.11" ExcludeAssets="runtime" />
     <PackageReference Include="Jellyfin.Model" Version="10.11.11" ExcludeAssets="runtime" />
-    <EmbeddedResource Include="../../webui/dist/subtitles-tool.js" LogicalName="SubtitlesTool.Script" />
+    <PackageReference Include="AngleSharp" Version="1.8.3" />
+    <PackageReference Include="UTF.Unknown" Version="2.7.0" />
+    <EmbeddedResource Include="../../webui/dist/*.js" LogicalName="SubtitlesTool.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Configuration/configPage.html" LogicalName="SubtitlesTool.Configuration" />
   </ItemGroup>
 </Project>
