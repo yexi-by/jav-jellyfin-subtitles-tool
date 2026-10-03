@@ -16,12 +16,13 @@ public sealed class ControllerContractTests
         using var fixture = new MediaFixture();
         var root = fixture.Movie("ABC-123-cd1.mp4");
         var part = fixture.Part(root, "ABC-123-cd2.mp4");
-        using var store = new SubtitleStore(Path.Combine(fixture.Directory, "data"));
-        var controller = new SubtitlesController(fixture.Library, fixture.Sources, null!, fixture.Targets(), null!, store, NullLogger<SubtitlesController>.Instance, new ApiAuthorization())
+        var store = new SubtitleStore(Path.Combine(fixture.Directory, "data"));
+        var controller = new SubtitlesController(fixture.Library, fixture.Sources, null!, fixture.Targets(), null!, store, NullLogger<SubtitlesController>.Instance, new ApiAuthorization(), null!)
         { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
         var result = Assert.IsType<JsonResult>(await controller.Info(part.Id, null));
         var json = JsonSerializer.SerializeToElement(result.Value, (JsonSerializerOptions)result.SerializerSettings!);
         Assert.Equal(part.Id.ToString("N"), json.GetProperty("selectedTargetId").GetString());
+        Assert.True(json.GetProperty("canTrim").GetBoolean());
         var targets = json.GetProperty("targets");
         Assert.Equal(2, targets.GetArrayLength());
         Assert.Equal("ABC-123-cd2.mp4", targets[1].GetProperty("fileName").GetString());
@@ -33,5 +34,17 @@ public sealed class ControllerContractTests
     {
         public Task<AuthorizationInfo> GetAuthorizationInfo(HttpContext context) => Task.FromResult(new AuthorizationInfo { IsAuthenticated = true, IsApiKey = true });
         public Task<AuthorizationInfo> GetAuthorizationInfo(HttpRequest context) => GetAuthorizationInfo(new DefaultHttpContext());
+    }
+
+    [Fact]
+    public async Task PermanentTrimCannotStartWithoutAnExplicitConfirmation()
+    {
+        using var fixture = new MediaFixture();
+        var movie = fixture.Movie("ABC-123.mp4");
+        var controller = new SubtitlesController(fixture.Library, fixture.Sources, null!, fixture.Targets(), null!, new SubtitleStore(Path.Combine(fixture.Directory, "data")),
+            NullLogger<SubtitlesController>.Instance, new ApiAuthorization(), null!)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+        var response = Assert.IsType<ObjectResult>(await controller.StartTrim(movie.Id, new SubtitlesController.TrimStartRequest(movie.Id, Guid.NewGuid()), default));
+        Assert.Equal(400, response.StatusCode);
     }
 }

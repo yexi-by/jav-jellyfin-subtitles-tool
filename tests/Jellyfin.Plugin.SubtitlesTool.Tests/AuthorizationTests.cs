@@ -12,7 +12,7 @@ public sealed class AuthorizationTests
     [Fact]
     public async Task MissingAuthenticatedUserCannotFallBackToUnrestrictedLibraryAccess()
     {
-        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext())
+        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext(), null!)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -27,6 +27,15 @@ public sealed class AuthorizationTests
     }
 
     [Fact]
+    public async Task PermanentTrimRequiresAnAdministratorBeforeAccessingTheFile()
+    {
+        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext(), null!)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+        var response = Assert.IsType<ObjectResult>(await controller.PlanTrim(Guid.NewGuid(), new SubtitlesController.TrimPlanRequest(Guid.NewGuid(), 2500), default));
+        Assert.Equal(403, response.StatusCode);
+    }
+
+    [Fact]
     public async Task SearchErrorCanBeSentAfterProgressHasStartedTheResponse()
     {
         var context = new DefaultHttpContext();
@@ -35,7 +44,7 @@ public sealed class AuthorizationTests
         context.Features.Set<IHttpResponseFeature>(new StartedResponse { Headers = headers });
         using var body = new MemoryStream();
         context.Response.Body = body;
-        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext())
+        var controller = new SubtitlesController(null!, null!, null!, null!, null!, null!, NullLogger<SubtitlesController>.Instance, new MissingUserContext(), null!)
         {
             ControllerContext = new ControllerContext { HttpContext = context }
         };

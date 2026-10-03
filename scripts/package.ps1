@@ -16,13 +16,13 @@ Compress-Archive -LiteralPath $files -DestinationPath $archivePath -Force
 $entry = @{
     guid = 'c4b75732-8527-4f58-9cdf-18efca21a9e5'
     name = 'JAV Subtitles Tool'
-    description = '聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持校准并保存。'
-    overview = '迅雷全部候选、SubtitleCat 语言选择、分段独立搜索与持久化字幕校准。'
+    description = '聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持永久裁切片头及手动校准。'
+    overview = '关键帧对齐裁切、直接替换视频、迅雷全部候选及 SubtitleCat 语言选择。'
     owner = 'yexi-by'
     category = 'Metadata'
     versions = @(@{
         version = $version
-        changelog = '修复 SubtitleCat 搜索写法漏检和番号前导零匹配，按番号排除其他影片候选；兼容 SRT 时间行中的全角冒号、简写箭头及零宽字符。下载原稿继续保留，校准和恢复输出可播放的字幕。'
+        changelog = '新增手动选择正片起点后的关键帧快速裁切，保持原画质并永久替换当前视频；显示实际起点和进度，支持取消。裁切后刷新媒体信息并清除旧指纹。字幕校准直接修改当前文件，不再保存原稿或提供恢复原稿功能。'
         targetAbi = '10.11.11.0'
         sourceUrl = "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v$version/jav-jellyfin-subtitles-tool_$version.zip"
         checksum = (Get-FileHash -LiteralPath $archivePath -Algorithm MD5).Hash.ToUpperInvariant()

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.SubtitlesTool.Core;
 using MediaBrowser.Common.Api;
 using MediaBrowser.Controller.Entities;
@@ -19,13 +21,16 @@ namespace Jellyfin.Plugin.SubtitlesTool;
 [ApiController]
 [Route("SubtitlesTool/Items/{itemId:guid}")]
 [Authorize(Policy = Policies.SubtitleManagement)]
-public sealed class SubtitlesController(ILibraryManager library, IMediaSourceManager sources, IFileSystem fileSystem, MediaTargets targets, SubtitleSearch search, SubtitleStore subtitles, ILogger<SubtitlesController> logger, IAuthorizationContext authorization) : ControllerBase
+public sealed class SubtitlesController(ILibraryManager library, IMediaSourceManager sources, IFileSystem fileSystem, MediaTargets targets, SubtitleSearch search, SubtitleStore subtitles, ILogger<SubtitlesController> logger, IAuthorizationContext authorization, VideoTrimmer trimmer) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public sealed record SearchRequest(Guid TargetId, string Query, string SubtitleCatLanguage = "zh", bool ComputeHash = false);
     public sealed record DownloadRequest(Guid TargetId, string CandidateId, bool Overwrite = false);
     public sealed record CalibrationOpenRequest(Guid TargetId, string SubtitleId, bool Restart = false);
     public sealed record CalibrationSaveRequest(Guid TargetId, string SubtitleId, long OffsetMilliseconds, string CurrentHash, string MediaStamp);
+    public sealed record TrimPlanRequest(Guid TargetId, double RequestedMilliseconds);
+    public sealed record TrimStartRequest(Guid TargetId, Guid PlanId, bool Confirmed = false);
+    public sealed record TrimCancelRequest(Guid TargetId, Guid JobId);
 
     [HttpGet]
     public async Task<ActionResult> Info(Guid itemId, [FromQuery] string? mediaSourceId)
@@ -40,6 +45,7 @@ public sealed class SubtitlesController(ILibraryManager library, IMediaSourceMan
             return Data(new
             {
                 rootId = root.Id.ToString("N"), selectedTargetId = selected.Id.ToString("N"),
+                canTrim = (await authorization.GetAuthorizationInfo(HttpContext)) is var auth && (auth.IsApiKey || auth.User?.HasPermission(PermissionKind.IsAdministrator) == true),
                 targets = list.Select(target => new
                 {
                     id = target.Id.ToString("N"), versionId = target.VersionId.ToString("N"), target.VersionName, target.FileName,
@@ -120,6 +126,62 @@ public sealed class SubtitlesController(ILibraryManager library, IMediaSourceMan
             return await Refresh(target, path, "校准已保存。请重新加载字幕，并将播放器的临时字幕偏移归零。");
         }
         catch (Exception ex) when (IsUserError(ex)) { return ErrorResult(ex); }
+    }
+
+    [HttpPost("trim/plan")]
+    public async Task<ActionResult> PlanTrim(Guid itemId, [FromBody] TrimPlanRequest body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RequireAdministrator();
+            var target = Select(targets.Enumerate(await RootAsync(itemId)), body.TargetId);
+            return Data(await trimmer.PlanAsync(target, body.RequestedMilliseconds, cancellationToken));
+        }
+        catch (Exception ex) when (IsUserError(ex)) { return ErrorResult(ex); }
+    }
+
+    [HttpPost("trim/start")]
+    public async Task<ActionResult> StartTrim(Guid itemId, [FromBody] TrimStartRequest body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RequireAdministrator();
+            var target = Select(targets.Enumerate(await RootAsync(itemId)), body.TargetId);
+            if (!body.Confirmed) throw new ToolException("请确认永久裁切当前视频。", 400);
+            return Data(await trimmer.StartAsync(target, body.PlanId, cancellationToken));
+        }
+        catch (Exception ex) when (IsUserError(ex)) { return ErrorResult(ex); }
+    }
+
+    [HttpGet("trim")]
+    public async Task<ActionResult> TrimProgress(Guid itemId, [FromQuery] Guid targetId)
+    {
+        try
+        {
+            await RequireAdministrator();
+            var target = Select(targets.Enumerate(await RootAsync(itemId)), targetId);
+            return Data(new { job = trimmer.Status(target.Path) });
+        }
+        catch (Exception ex) when (IsUserError(ex)) { return ErrorResult(ex); }
+    }
+
+    [HttpPost("trim/cancel")]
+    public async Task<ActionResult> CancelTrim(Guid itemId, [FromBody] TrimCancelRequest body)
+    {
+        try
+        {
+            await RequireAdministrator();
+            var target = Select(targets.Enumerate(await RootAsync(itemId)), body.TargetId);
+            return Data(trimmer.Cancel(target.Path, body.JobId));
+        }
+        catch (Exception ex) when (IsUserError(ex)) { return ErrorResult(ex); }
+    }
+
+    private async Task RequireAdministrator()
+    {
+        var auth = await authorization.GetAuthorizationInfo(HttpContext);
+        if (!auth.IsApiKey && auth.User?.HasPermission(PermissionKind.IsAdministrator) != true)
+            throw new ToolException("永久裁切需要 Jellyfin 管理员权限。", 403);
     }
 
     private async Task<ActionResult> Refresh(MediaTarget target, string subtitlePath, string message)

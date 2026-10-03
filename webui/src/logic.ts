@@ -1,7 +1,7 @@
 export interface Candidate { id: string; source: 'xunlei' | 'subtitlecat'; name: string; format: string; language: string | null; match: string; partNumber: number | null; canDownload: boolean; unavailableReason: string | null }
 export interface SavedSubtitle { id: string; fileName: string; format: string; canCalibrate: boolean }
 export interface MediaTarget { id: string; versionId: string; versionName: string; fileName: string; partNumber: number; partCount: number; runTimeTicks: number | null; query: string; hasRecord: boolean; subtitles: SavedSubtitle[] }
-export interface MediaInfo { rootId: string; selectedTargetId: string; targets: MediaTarget[] }
+export interface MediaInfo { rootId: string; selectedTargetId: string; canTrim: boolean; targets: MediaTarget[] }
 export interface SourceState { state: string; count?: number; message?: string }
 export interface TargetState { info: MediaTarget; query: string; candidates: Candidate[]; sources: Record<string, SourceState>; status: 'idle' | 'searching' | 'done' | 'error'; progress: string; notice: string }
 

@@ -46,6 +46,8 @@ class Panel {
   private selected = '';
   private busyDownload = false;
   private calibrationOpen = false;
+  private canTrim = false;
+  private readonly trim = button('裁切片头与校准', () => { const state = this.current(); if (state) void this.calibrate(state, null); });
   private readonly retry = button('搜索这一段', () => void this.search(this.selected), 'primary');
   private readonly all = button('搜索全部分段', () => void this.searchAll());
   private readonly hash = button('按视频文件进一步搜索', () => void this.search(this.selected, true));
@@ -77,7 +79,7 @@ class Panel {
       const option = node('option', '', text); option.value = value; this.language.append(option);
     }
     languageLabel.append(this.language); queryToolbar.append(queryLabel, languageLabel, this.retry);
-    const tools = node('div', 'toolbar compact'); tools.append(this.hash);
+    const tools = node('div', 'toolbar compact'); tools.append(this.hash, this.trim);
     const filterLabel = node('label', 'field-label source-filter', '显示来源');
     for (const [value, text] of [['all', '两个来源'], ['xunlei', '迅雷'], ['subtitlecat', 'SubtitleCat']]) { const option = node('option', '', text); option.value = value; this.sourceFilter.append(option); }
     this.sourceFilter.addEventListener('change', () => this.render()); filterLabel.append(this.sourceFilter); tools.append(filterLabel);
@@ -101,6 +103,7 @@ class Panel {
     const source = initial ? sourceId() : this.version.value;
     const info = await (await request(this.root + (source ? '?mediaSourceId=' + encodeURIComponent(source) : ''), this.abort.signal)).json() as MediaInfo;
     if (this.abort.signal.aborted) return;
+    this.canTrim = info.canTrim;
     const remaining = new Set(info.targets.map(target => target.id));
     for (const id of this.states.keys()) if (!remaining.has(id)) this.states.delete(id);
     for (const target of info.targets) {
@@ -138,6 +141,8 @@ class Panel {
     this.retry.disabled = searching || this.busyDownload; this.hash.disabled = searching || this.busyDownload;
     this.query.disabled = searching; this.language.disabled = searching;
     this.all.disabled = this.busyDownload || this.searches.size > 0;
+    this.trim.hidden = !this.canTrim;
+    this.trim.disabled = this.busyDownload || this.calibrationOpen;
     this.all.hidden = this.partButtons.size < 2;
     this.status.replaceChildren();
     if (state.notice) this.status.append(node('p', state.status === 'error' ? 'error-text' : 'status-text', state.notice));
@@ -228,15 +233,16 @@ class Panel {
       } else state.notice = message(error);
     } finally { this.busyDownload = false; if (!this.abort.signal.aborted) this.render(); }
   }
-  private async calibrate(state: TargetState, subtitleId: string): Promise<void> {
+  private async calibrate(state: TargetState, subtitleId: string | null): Promise<void> {
     if (this.calibrationOpen) return;
     this.calibrationOpen = true; this.render();
     try {
       const { openCalibration } = await import('./calibration');
       if (this.abort.signal.aborted) return;
-      await openCalibration(this.root, state.info, subtitleId, this.abort.signal, async () => {
+      await openCalibration(this.root, state.info, subtitleId, this.abort.signal, async videoChanged => {
+        if (videoChanged) { state.candidates = []; state.sources = {}; state.status = 'idle'; }
         await this.loadInfo(); await refreshDetails(this.id, state.info.versionId, this.abort.signal);
-      });
+      }, this.canTrim);
     } catch (error) { if (!this.abort.signal.aborted) state.notice = message(error); }
     finally { this.calibrationOpen = false; if (!this.abort.signal.aborted) this.render(); }
   }

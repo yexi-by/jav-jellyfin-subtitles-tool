@@ -56,41 +56,44 @@ public sealed class CalibrationTests : IDisposable
     }
 
     [Fact]
-    public async Task SavedOffsetsSurviveRestartDoNotAccumulateAndStayBoundToTheFile()
+    public async Task AdjustsCurrentSubtitleAfterRestartWithoutRetainingOriginalAndStaysBoundToTheFile()
     {
         var first = Target("ABC-123-cd1.mp4"); var second = Target("ABC-123-cd2.mp4");
         var bytes = Encoding.UTF8.GetBytes(Sample("srt"));
         var candidate = new SourceSubtitle("xunlei", "ABC-123.srt", "srt", null, new Uri("https://subtitle.v.geilijiasu.com/a.srt"));
         var data = Path.Combine(_directory, "plugin-data");
         string path;
-        using (var store = new SubtitleStore(data))
+
         {
+            var store = new SubtitleStore(data);
             path = await store.SaveDownloadAsync(first, candidate, bytes, false, default);
             await store.SaveDownloadAsync(second, candidate, bytes, false, default);
             var info = await store.OpenAsync(first, Path.GetFileName(path), false, default);
             await store.CalibrateAsync(first, info.FileName, 30_000, info.CurrentHash, info.MediaStamp, default);
             await Assert.ThrowsAsync<ToolException>(() => store.CalibrateAsync(first, info.FileName, 32_000, info.CurrentHash, info.MediaStamp, default));
         }
-        using (var store = new SubtitleStore(data))
+
         {
+            var store = new SubtitleStore(data);
             var info = await store.OpenAsync(first, Path.GetFileName(path), false, default);
-            Assert.Equal(30_000, info.OffsetMilliseconds);
-            await store.CalibrateAsync(first, info.FileName, 32_000, info.CurrentHash, info.MediaStamp, default);
+            Assert.Equal(40_000, info.Cues[1].StartMilliseconds);
+            await store.CalibrateAsync(first, info.FileName, 2_000, info.CurrentHash, info.MediaStamp, default);
             Assert.Equal(42_000, new SubtitleDocument(await File.ReadAllBytesAsync(path), "srt").Cues[1].StartMilliseconds);
             Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(_directory, "ABC-123-cd2.xunlei.srt")));
             info = await store.OpenAsync(first, info.FileName, false, default);
-            await store.CalibrateAsync(first, info.FileName, 0, info.CurrentHash, info.MediaStamp, default);
+            await store.CalibrateAsync(first, info.FileName, -32_000, info.CurrentHash, info.MediaStamp, default);
             Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
             await File.AppendAllTextAsync(first.Path, "changed");
             Assert.Equal(409, (await Assert.ThrowsAsync<ToolException>(() => store.OpenAsync(first, info.FileName, false, default))).Status);
-            Assert.Equal(0, (await store.OpenAsync(first, info.FileName, true, default)).OffsetMilliseconds);
+            Assert.Equal(10_000, (await store.OpenAsync(first, info.FileName, true, default)).Cues[1].StartMilliseconds);
             await Assert.ThrowsAsync<ToolException>(() => store.OpenAsync(first, "../ABC-123-cd2.xunlei.srt", false, default));
+            Assert.Empty(Directory.GetFiles(data, "original", SearchOption.AllDirectories));
         }
     }
 
     [Theory]
     [InlineData("utf-8", false)][InlineData("utf-8", true)][InlineData("utf-16", true)]
-    public async Task RepairsSrtTimeLinesKeepsTheDownloadAndRestoresOriginalTimings(string name, bool bom)
+    public async Task RepairsSrtTimeLinesAndAdjustsCurrentBytesWithoutKeepingTheDownload(string name, bool bom)
     {
         var target = Target("ABC-123.mp4");
         var text = "1\r\n00：00：3\u200B0.040-> 00：00：3\u200B2.040\r\n<b>正文：保留\u200B全角，字样 -> 也保留</b>\r\n\r\n2\r\n00:01:00,000  -->\t00:01:02,000\r\n第二条\r\n";
@@ -100,24 +103,24 @@ public sealed class CalibrationTests : IDisposable
         var original = preamble.Concat(encoding.GetBytes(text)).ToArray();
         var expected = preamble.Concat(encoding.GetBytes(normalized)).ToArray();
         var data = Path.Combine(_directory, "plugin-data");
-        using var store = new SubtitleStore(data);
+        var store = new SubtitleStore(data);
         var candidate = new SourceSubtitle("subtitlecat", "ABC-123", "srt", "zh-CN", null);
         var path = await store.SaveDownloadAsync(target, candidate, original, false, default);
         Assert.Equal(expected, await File.ReadAllBytesAsync(path));
-        var backup = Assert.Single(Directory.GetFiles(data, "original", SearchOption.AllDirectories));
-        Assert.Equal(original, await File.ReadAllBytesAsync(backup));
-        foreach (var offset in new long[] { 30_000, 32_000 })
+        long applied = 0;
+        foreach (var offset in new long[] { 30_000, 2_000 })
         {
             var info = await store.OpenAsync(target, Path.GetFileName(path), false, default);
             Assert.Equal(2, info.Cues.Count);
-            Assert.Equal(30_040, info.Cues[0].StartMilliseconds);
+            Assert.Equal(30_040 + applied, info.Cues[0].StartMilliseconds);
             await store.CalibrateAsync(target, info.FileName, offset, info.CurrentHash, info.MediaStamp, default);
-            Assert.Equal(30_040 + offset, new SubtitleDocument(await File.ReadAllBytesAsync(path), "srt").Cues[0].StartMilliseconds);
+            applied += offset;
+            Assert.Equal(30_040 + applied, new SubtitleDocument(await File.ReadAllBytesAsync(path), "srt").Cues[0].StartMilliseconds);
         }
         var restore = await store.OpenAsync(target, Path.GetFileName(path), false, default);
-        await store.CalibrateAsync(target, restore.FileName, 0, restore.CurrentHash, restore.MediaStamp, default);
+        await store.CalibrateAsync(target, restore.FileName, -32_000, restore.CurrentHash, restore.MediaStamp, default);
         Assert.Equal(expected, await File.ReadAllBytesAsync(path));
-        Assert.Equal(original, await File.ReadAllBytesAsync(backup));
+        Assert.Empty(Directory.GetFiles(data, "original", SearchOption.AllDirectories));
     }
 
     [Theory]
@@ -125,13 +128,31 @@ public sealed class CalibrationTests : IDisposable
     public async Task DownloadRejectsInvalidContentBeforeReplacingTheExistingSubtitle(string invalid)
     {
         var target = Target("ABC-123.mp4"); var bytes = Encoding.UTF8.GetBytes(Sample("srt"));
-        using var store = new SubtitleStore(Path.Combine(_directory, "plugin-data"));
+        var store = new SubtitleStore(Path.Combine(_directory, "plugin-data"));
         var candidate = new SourceSubtitle("subtitlecat", "name", "srt", "zh-CN", null);
         var path = await store.SaveDownloadAsync(target, candidate, bytes, false, default);
         Assert.EndsWith("ABC-123.subtitlecat.zh-Hans.srt", path);
-        Assert.Equal(bytes, await File.ReadAllBytesAsync(Assert.Single(Directory.GetFiles(Path.Combine(_directory, "plugin-data"), "original", SearchOption.AllDirectories))));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_directory, "plugin-data"), "original", SearchOption.AllDirectories));
         await Assert.ThrowsAsync<ToolException>(() => store.SaveDownloadAsync(target, candidate, Encoding.UTF8.GetBytes(invalid), true, default));
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
+    public async Task AdvancingCurrentSubtitlePermanentlyRemovesClippedCues()
+    {
+        var target = Target("ABC-123.mp4");
+        var data = Path.Combine(_directory, "data");
+        var store = new SubtitleStore(data);
+        var path = Path.Combine(_directory, "ABC-123.srt");
+        await File.WriteAllTextAsync(path, Sample("srt"));
+        Assert.Single(store.List(target));
+        var current = await store.OpenAsync(target, Path.GetFileName(path), false, default);
+        await store.CalibrateAsync(target, current.FileName, -2000, current.CurrentHash, current.MediaStamp, default);
+        current = await new SubtitleStore(data).OpenAsync(target, current.FileName, false, default);
+        Assert.Single(current.Cues);
+        await store.CalibrateAsync(target, current.FileName, 2000, current.CurrentHash, current.MediaStamp, default);
+        Assert.Single(new SubtitleDocument(await File.ReadAllBytesAsync(path), "srt").Cues);
+        Assert.Empty(Directory.GetFiles(data, "original", SearchOption.AllDirectories));
     }
 
     public void Dispose() => Directory.Delete(_directory, true);
