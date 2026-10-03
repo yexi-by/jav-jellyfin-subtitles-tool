@@ -52,8 +52,10 @@ public sealed class SubtitleSourceTests
         Assert.Equal(2, calls);
     }
 
-    [Fact]
-    public async Task AFailedSourceDoesNotHideThunderResultsAndCandidatesAreBoundToTheirPart()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFailedSourceDoesNotHideThunderResultsAndCandidatesAreBoundToTheirPart(bool timeout)
     {
         var first = Target(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + "-cd1.mp4"), 1, 2);
         var second = Target(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + "-cd2.mp4"), 2, 2, first.VersionId);
@@ -64,7 +66,9 @@ public sealed class SubtitleSourceTests
             new { name = "ABC-1234.srt", ext = "srt", url = "https://subtitle.v.geilijiasu.com/wrong.srt" },
             new { name = "ABC-123.smi", ext = "smi", url = "https://subtitle.v.geilijiasu.com/unsupported.smi" }
         } })))));
-        using var cat = new SubtitleCatSource(new HttpClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))));
+        using var cat = new SubtitleCatSource(new HttpClient(new Handler((_, _) => timeout
+            ? throw new TaskCanceledException("source timeout")
+            : Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))));
         using var hashes = new HashRecords(); using var search = new SubtitleSearch(thunder, cat, hashes);
         var events = new List<JsonElement>();
         await search.SearchAsync(first, [first, second], "ABC-123 CD1", "zh", false, value => { events.Add(JsonSerializer.SerializeToElement(value, JsonOptions)); return Task.CompletedTask; }, default);
@@ -78,6 +82,19 @@ public sealed class SubtitleSourceTests
         Assert.Contains(results, item => !item.GetProperty("candidates")[0].GetProperty("canDownload").GetBoolean());
         Assert.Contains(events, item => item.GetProperty("type").GetString() == "source" && item.GetProperty("source").GetString() == "subtitlecat" && item.GetProperty("state").GetString() == "error");
         Assert.Equal("done", events[^1].GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task SubtitleCatDistinguishesTranslateOnlyPagesFromBrokenDownloads()
+    {
+        using var cat = new SubtitleCatSource(new HttpClient(new Handler((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith(".srt", StringComparison.Ordinal)
+            ? new HttpResponseMessage(HttpStatusCode.NotFound)
+            : Html("<button onclick=\"translate_from_server_folder('zh-CN','orig.srt','/subs/1/')\">Translate</button>")))));
+        var entry = new SourceSubtitle("subtitlecat", "ABC-123", "srt", null, new Uri("https://www.subtitlecat.com/subs/1/ABC-123.html"));
+        Assert.Empty(await cat.LanguagesAsync(entry, "zh", default));
+        var error = await Assert.ThrowsAsync<ToolException>(() => cat.DownloadAsync(new Uri("https://www.subtitlecat.com/subs/1/missing.srt"), default));
+        Assert.Equal(502, error.Status);
+        Assert.Contains("404", error.Message);
     }
 
     [Fact]
