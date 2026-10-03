@@ -1,20 +1,20 @@
 [
   {
     "guid": "c4b75732-8527-4f58-9cdf-18efca21a9e5",
-    "name": "Subtitles Tool",
-    "category": "Metadata",
-    "overview": "详情页字幕面板与计划任务预生成记录，支持中文筛选和同名外挂字幕保存。",
+    "overview": "迅雷全部候选、SubtitleCat 语言选择、分段独立搜索与持久化字幕校准。",
+    "name": "JAV Subtitles Tool",
     "versions": [
       {
-        "checksum": "3EEB1BBFF0006BD6BD897B9CFC5E3099",
-        "version": "0.2.0.0",
-        "timestamp": "2026-09-05T16:44:27Z",
-        "changelog": "增加空闲时生成 CID、GCID 记录的计划任务，初始触发器为空。播放期间等待，手动计算优先，支持停止任务。",
-        "targetAbi": "10.11.11.0",
-        "sourceUrl": "https://github.com/yexi-by/jellyfin-subtitles-tool/releases/download/v0.2.0.0/Jellyfin.Plugin.SubtitlesTool_0.2.0.0.zip"
+        "version": "0.3.0.0",
+        "sourceUrl": "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v0.3.0.0/jav-jellyfin-subtitles-tool_0.3.0.0.zip",
+        "checksum": "B57F4779E2887543D022D247A4EA76EB",
+        "timestamp": "2026-10-03T18:19:13Z",
+        "changelog": "增加 SubtitleCat、番号搜索、分段独立查询、路径配置和字幕校准。迅雷取消语言筛选，指纹任务覆盖后续分段并保留原有触发时间。",
+        "targetAbi": "10.11.11.0"
       }
     ],
-    "description": "在视频旁保存 CID、GCID，手动选择并下载外挂字幕。",
-    "owner": "yexi-by"
+    "owner": "yexi-by",
+    "category": "Metadata",
+    "description": "聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持校准并保存。"
   }
 ]
