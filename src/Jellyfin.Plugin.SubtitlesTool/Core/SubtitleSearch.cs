@@ -23,7 +23,7 @@ public sealed class SubtitleSearch(ThunderSource thunder, SubtitleCatSource subt
             if (match is null) return false;
             var destination = target;
             var part = JavIdentity.ExtractPart(item.Name, target.PartCount > 1);
-            if (part is not null && part != target.PartNumber && JavIdentity.Extract(item.Name) == query.Code)
+            if (part is not null && part != target.PartNumber && JavIdentity.SameCode(JavIdentity.Extract(item.Name), query.Code))
             {
                 var matchingPart = targets.FirstOrDefault(value => value.VersionId == target.VersionId && value.PartNumber == part);
                 if (matchingPart is null) return false;
@@ -39,14 +39,19 @@ public sealed class SubtitleSearch(ThunderSource thunder, SubtitleCatSource subt
             return true;
         }
 
-        async Task Run(string source, Func<Func<SourceSubtitle, bool, Task>, List<string>, Task> operation)
+        async Task Run(string source, Func<Func<SourceSubtitle, bool, Task<bool>>, List<string>, Task> operation)
         {
             var count = 0;
             var errors = new List<string>();
             await emit(new { type = "source", targetId = target.Id.ToString("N"), source, state = "searching" });
             try
             {
-                await operation(async (item, byFile) => { if (await Add(item, byFile)) Interlocked.Increment(ref count); }, errors);
+                await operation(async (item, byFile) =>
+                {
+                    var added = await Add(item, byFile);
+                    if (added) Interlocked.Increment(ref count);
+                    return added;
+                }, errors);
             }
             catch (ToolException ex) { errors.Add(ex.Message); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { errors.Add("读取文件或字幕源响应失败，请检查服务器网络和文件权限。"); }
@@ -79,7 +84,8 @@ public sealed class SubtitleSearch(ThunderSource thunder, SubtitleCatSource subt
             Run("subtitlecat", async (add, errors) =>
             {
                 var pages = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var term in query.Terms)
+                var found = false;
+                async Task Query(string term)
                 {
                     await QuerySafely(async () =>
                     {
@@ -96,11 +102,18 @@ public sealed class SubtitleSearch(ThunderSource thunder, SubtitleCatSource subt
                             foreach (var result in results)
                             {
                                 if (result.Error is not null) errors.Add(result.Error);
-                                foreach (var item in result.Items) await add(item, false);
+                                foreach (var item in result.Items) found |= await add(item, false);
                             }
                         }
                     }, errors);
                 }
+                foreach (var term in query.Terms) await Query(term);
+                if (!found)
+                    foreach (var term in query.SubtitleCatFallbackTerms)
+                    {
+                        await Query(term);
+                        if (found) break;
+                    }
                 if (query.Terms.Length == 0) errors.Add("请输入番号后查询 SubtitleCat。");
             }));
         await emit(new { type = "done", targetId = target.Id.ToString("N") });

@@ -21,6 +21,72 @@ public sealed class SubtitleSourceTests
     [InlineData("HEYZO_1234.mkv", "HEYZO-1234")]
     public void JavCodesKeepTheirIdentity(string name, string expected) => Assert.Equal(expected, JavIdentity.Extract(name));
 
+    [Theory]
+    [InlineData(true)][InlineData(false)]
+    public async Task SubtitleCatTriesCompactCodeWhenTheRequestedLanguageIsMissing(bool primaryHasChinese)
+    {
+        var target = Target("/media/BEB-084.mp4");
+        var queries = new List<string>(); var events = new List<JsonElement>();
+        using var thunder = new ThunderSource(new HttpClient(new Handler((_, _) => Task.FromResult(Json(new { code = 0, data = Array.Empty<object>() })))));
+        using var cat = new SubtitleCatSource(new HttpClient(new Handler((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/index.php")
+            {
+                var term = Uri.UnescapeDataString(request.RequestUri.Query[8..]); queries.Add(term);
+                var page = term == "BEB084" ? "compact" : "primary";
+                return Task.FromResult(Html($"<table class='sub-table'><tr><td><a href='/subs/1/{page}.html'>BEB084</a><a href='/subs/1/wrong.html'>BEB-085</a><a href='/subs/1/uncoded.html'>其他电影</a></td></tr></table>"));
+            }
+            Assert.DoesNotContain("wrong", path);
+            Assert.DoesNotContain("uncoded", path);
+            var language = primaryHasChinese || path.EndsWith("compact.html", StringComparison.Ordinal) ? "zh-CN" : "en";
+            return Task.FromResult(Html($"<a id='download_{language}' href='/subs/1/{language}.srt'>Download</a>"));
+        })));
+        using var hashes = new HashRecords(); using var search = new SubtitleSearch(thunder, cat, hashes);
+        await search.SearchAsync(target, [target], "BEB-084", "zh", false, value => { events.Add(JsonSerializer.SerializeToElement(value, JsonOptions)); return Task.CompletedTask; }, default);
+        Assert.Equal(primaryHasChinese ? ["BEB-084"] : new[] { "BEB-084", "BEB084" }, queries);
+        var item = Assert.Single(events, item => item.GetProperty("type").GetString() == "candidates");
+        Assert.Equal("zh-CN", item.GetProperty("candidates")[0].GetProperty("language").GetString());
+    }
+
+    [Fact]
+    public async Task NumberPaddingMatchesAndRoutesTheCandidateToItsOwnPart()
+    {
+        var first = Target("/media/IKUNA-001-cd1.mp4", 1, 2); var second = Target("/media/IKUNA-001-cd2.mp4", 2, 2, first.VersionId);
+        var events = new List<JsonElement>(); var details = new List<string>();
+        using var thunder = new ThunderSource(new HttpClient(new Handler((_, _) => Task.FromResult(Json(new { code = 0, data = Array.Empty<object>() })))));
+        using var cat = new SubtitleCatSource(new HttpClient(new Handler((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/index.php") return Task.FromResult(Html("<table class='sub-table'><tr><td><a href='/subs/1/IKUNA-01-CD2.html'>IKUNA-01 CD2</a><a href='/subs/1/other.html'>IKUNA-002</a><a href='/subs/1/prefix.html'>OTHER-001</a></td></tr></table>"));
+            details.Add(path);
+            return Task.FromResult(Html("<a id='download_zh-CN' href='/subs/1/IKUNA-01-CD2-zh-CN.srt'>Download</a>"));
+        })));
+        using var hashes = new HashRecords(); using var search = new SubtitleSearch(thunder, cat, hashes);
+        await search.SearchAsync(first, [first, second], "IKUNA-001 CD1", "zh", false, value => { events.Add(JsonSerializer.SerializeToElement(value, JsonOptions)); return Task.CompletedTask; }, default);
+        Assert.Equal(["/subs/1/IKUNA-01-CD2.html"], details);
+        var item = Assert.Single(events, item => item.GetProperty("type").GetString() == "candidates");
+        Assert.Equal(second.Id.ToString("N"), item.GetProperty("targetId").GetString());
+        var id = item.GetProperty("candidates")[0].GetProperty("id").GetString()!;
+        Assert.Equal(second.Path, search.Resolve(id, second.Path).MediaPath);
+        Assert.Throws<ToolException>(() => search.Resolve(id, first.Path));
+    }
+
+    [Fact]
+    public async Task MissingSubtitleCatResultsUseABoundedSetOfDistinctQueries()
+    {
+        var target = Target("/media/IKUNA-001.mp4"); var queries = new List<string>();
+        using var thunder = new ThunderSource(new HttpClient(new Handler((_, _) => Task.FromResult(Json(new { code = 0, data = Array.Empty<object>() })))));
+        using var cat = new SubtitleCatSource(new HttpClient(new Handler((request, _) =>
+        {
+            queries.Add(Uri.UnescapeDataString(request.RequestUri!.Query[8..]));
+            return Task.FromResult(Html("<table class='sub-table'></table>"));
+        })));
+        using var hashes = new HashRecords(); using var search = new SubtitleSearch(thunder, cat, hashes);
+        await search.SearchAsync(target, [target], "IKUNA-001", "zh", false, _ => Task.CompletedTask, default);
+        Assert.Equal(["IKUNA-001", "IKUNA001", "IKUNA 001", "IKUNA-1", "IKUNA1", "IKUNA 1"], queries);
+    }
+
     [Fact]
     public async Task ThunderIgnoresLanguageFieldsAndQueriesNameOrGcidExplicitly()
     {

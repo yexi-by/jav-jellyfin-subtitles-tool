@@ -21,6 +21,20 @@ public sealed record CandidateDownload(string MediaPath, SourceSubtitle Subtitle
 public sealed record SearchQuery(string Text, string? Code, int PartNumber, int PartCount)
 {
     public string[] Terms => new[] { Text, Code }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    public string[] SubtitleCatFallbackTerms
+    {
+        get
+        {
+            if (Code is null) return [];
+            var separator = Code.LastIndexOf('-');
+            var prefix = Code[..separator];
+            var digits = Code[(separator + 1)..];
+            var number = digits.TrimStart('0');
+            if (number.Length == 0) number = "0";
+            return new[] { prefix + digits, prefix + " " + digits, prefix + "-" + number, prefix + number, prefix + " " + number }
+                .Except(Terms, StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+    }
 }
 
 public static class JavIdentity
@@ -48,6 +62,17 @@ public static class JavIdentity
         return int.TryParse(token, out var number) ? number : token[0] - 'A' + 1;
     }
 
+    public static bool SameCode(string? first, string? second)
+    {
+        if (first is null || second is null) return false;
+        static string Key(string value)
+        {
+            var separator = value.LastIndexOf('-');
+            return value[..(separator + 1)] + value[(separator + 1)..].TrimStart('0');
+        }
+        return string.Equals(Key(first), Key(second), StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string DefaultQuery(string path, string title, int part, int count)
     {
         var code = Extract(Path.GetFileNameWithoutExtension(path)) ?? Extract(Path.GetFileName(Path.GetDirectoryName(path))) ?? Extract(title);
@@ -57,10 +82,14 @@ public static class JavIdentity
     public static string? Match(SourceSubtitle subtitle, SearchQuery query, bool byFile)
     {
         var code = Extract(subtitle.Name);
-        if (!byFile && query.Code is not null && code is not null && !string.Equals(query.Code, code, StringComparison.OrdinalIgnoreCase)) return null;
+        if (!byFile && query.Code is not null)
+        {
+            if (code is null && subtitle.Source == "subtitlecat") return null;
+            if (code is not null && !SameCode(query.Code, code)) return null;
+        }
         var part = ExtractPart(subtitle.Name, query.PartCount > 1);
         if (query.PartCount > 1 && part is not null && part != query.PartNumber) return $"标记为第 {part} 段";
-        if (byFile) return code is not null && query.Code is not null && code != query.Code ? "按文件查询 · 番号不符，待确认" : "按文件查询 · 请核对内容";
+        if (byFile) return code is not null && query.Code is not null && !SameCode(code, query.Code) ? "按文件查询 · 番号不符，待确认" : "按文件查询 · 请核对内容";
         if (query.PartCount > 1) return part is null ? "番号查询 · 分段待确认" : $"第 {part} 段标记 · 请核对切分位置";
         return code is null ? "匹配待确认" : "番号一致 · 请核对版本";
     }

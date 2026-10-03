@@ -7,13 +7,14 @@ namespace Jellyfin.Plugin.SubtitlesTool.Core;
 
 public sealed record SubtitleCue(int Index, long StartMilliseconds, long EndMilliseconds, string Text);
 
-/// <summary>只替换时间字段，其他文本、样式、换行及原始编码均保留。</summary>
+/// <summary>修正 SRT 时间行并调整时间字段，保留其他文本、样式、换行及原始编码。</summary>
 public sealed class SubtitleDocument
 {
     private const string Clock = @"(?:\d{1,3}:)?\d{2}:\d{2}[,.]\d{2,3}";
     private static readonly Regex Timing = new(@"(?m)^(?<start>" + Clock + @")[ \t]+-->[ \t]+(?<end>" + Clock + @")[^\r\n]*", RegexOptions.CultureInvariant);
+    private static readonly Regex RepairTiming = new(@"(?m)^(?<start>[0-9:：,.\u200B]+)[ \t]*(?:-->|->)[ \t]*(?<end>[0-9:：,.\u200B]+)(?<suffix>[^\r\n]*)", RegexOptions.CultureInvariant);
     private static readonly Regex InlineTime = new("<(?<time>" + Clock + ")>", RegexOptions.CultureInvariant);
-    private readonly byte[] _original;
+    private readonly byte[] _baseline;
     private readonly Encoding _encoding;
     private readonly byte[] _preamble;
     private readonly string _format;
@@ -26,7 +27,6 @@ public sealed class SubtitleDocument
     {
         if (!SubtitleFormats.Supports(format)) throw new ToolException("当前格式不支持校准。");
         if (bytes.Length == 0 || bytes.Length > 20 * 1024 * 1024) throw new ToolException("字幕文件为空或异常大。", 502);
-        _original = bytes;
         _format = format;
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         string text;
@@ -41,6 +41,16 @@ public sealed class SubtitleDocument
         { throw new ToolException("字幕包含无法识别的编码内容，请选择另一份字幕。", 502); }
         if (Regex.IsMatch(text.TrimStart(), @"\A(?:<!doctype\s+html|<html\b)", RegexOptions.IgnoreCase))
             throw new ToolException("下载内容是网页，并非有效字幕。", 502);
+        var decoded = text;
+        if (format == "srt") text = RepairTiming.Replace(text, match =>
+        {
+            var start = match.Groups["start"].Value.Replace('：', ':').Replace("\u200B", "");
+            var end = match.Groups["end"].Value.Replace('：', ':').Replace("\u200B", "");
+            if (!Regex.IsMatch(start, @"\A" + Clock + @"\z") || !Regex.IsMatch(end, @"\A" + Clock + @"\z")) return match.Value;
+            if (start == match.Groups["start"].Value && end == match.Groups["end"].Value && Timing.IsMatch(match.Value)) return match.Value;
+            return start + " --> " + end + match.Groups["suffix"].Value;
+        });
+        _baseline = text == decoded ? bytes : [.. _preamble, .. _encoding.GetBytes(text)];
         if (format is "ass" or "ssa") ParseAss(text);
         else ParseBlocks(text);
         Cues = _pieces.Where(piece => piece.StartIndex >= 0).Select((piece, index) => new SubtitleCue(index, piece.Start, piece.End, PlainText(piece.CueText))).ToArray();
@@ -50,7 +60,7 @@ public sealed class SubtitleDocument
     public byte[] Shift(long milliseconds)
     {
         if (Math.Abs((decimal)milliseconds) > 86_400_000) throw new ToolException("校准范围为提前或延后 24 小时以内。");
-        if (milliseconds == 0) return _original;
+        if (milliseconds == 0) return _baseline;
         var builder = new StringBuilder();
         var remaining = 0;
         foreach (var piece in _pieces)

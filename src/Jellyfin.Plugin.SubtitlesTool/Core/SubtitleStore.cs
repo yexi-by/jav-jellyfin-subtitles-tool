@@ -25,7 +25,7 @@ public sealed class SubtitleStore(string dataPath) : IDisposable
 
     public async Task<string> SaveDownloadAsync(MediaTarget target, SourceSubtitle subtitle, byte[] bytes, bool overwrite, CancellationToken cancellationToken)
     {
-        _ = new SubtitleDocument(bytes, subtitle.Format);
+        var current = new SubtitleDocument(bytes, subtitle.Format).Shift(0);
         var suffix = "." + subtitle.Source + (subtitle.Source == "subtitlecat" && subtitle.Language is not null ? "." + SubtitleFormats.FileLanguage(subtitle.Language) : "");
         var path = Path.Combine(Path.GetDirectoryName(target.Path)!, Path.GetFileNameWithoutExtension(target.Path) + suffix + "." + subtitle.Format);
         var gate = Gate(path);
@@ -47,11 +47,11 @@ public sealed class SubtitleStore(string dataPath) : IDisposable
             var published = false;
             try
             {
-                await SidecarWriter.WriteAsync(path, overwrite, bytes, cancellationToken);
+                await SidecarWriter.WriteAsync(path, overwrite, current, cancellationToken);
                 published = true;
                 // 下载时立即保留原稿，替换下载也从这一份新原稿开始校准。
                 await SidecarWriter.WriteAsync(originalPath, true, bytes, CancellationToken.None);
-                await WriteState(directory, new CalibrationState(MediaStamp(target.Path), Hash(bytes), 0), CancellationToken.None);
+                await WriteState(directory, new CalibrationState(MediaStamp(target.Path), Hash(current), 0), CancellationToken.None);
             }
             catch when (published)
             {
