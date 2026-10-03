@@ -1,20 +1,20 @@
 [
   {
     "guid": "c4b75732-8527-4f58-9cdf-18efca21a9e5",
-    "overview": "迅雷全部候选、SubtitleCat 语言选择、分段独立搜索与持久化字幕校准。",
     "name": "JAV Subtitles Tool",
+    "category": "Metadata",
+    "owner": "yexi-by",
+    "description": "聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持校准并保存。",
+    "overview": "迅雷全部候选、SubtitleCat 语言选择、分段独立搜索与持久化字幕校准。",
     "versions": [
       {
-        "version": "0.3.0.0",
-        "sourceUrl": "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v0.3.0.0/jav-jellyfin-subtitles-tool_0.3.0.0.zip",
-        "checksum": "B57F4779E2887543D022D247A4EA76EB",
-        "timestamp": "2026-10-03T18:19:13Z",
-        "changelog": "增加 SubtitleCat、番号搜索、分段独立查询、路径配置和字幕校准。迅雷取消语言筛选，指纹任务覆盖后续分段并保留原有触发时间。",
+        "changelog": "修复 SubtitleCat 搜索写法漏检和番号前导零匹配，按番号排除其他影片候选；兼容 SRT 时间行中的全角冒号、简写箭头及零宽字符。下载原稿继续保留，校准和恢复输出可播放的字幕。",
+        "sourceUrl": "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v0.3.1.0/jav-jellyfin-subtitles-tool_0.3.1.0.zip",
+        "version": "0.3.1.0",
+        "timestamp": "2026-10-03T21:18:57Z",
+        "checksum": "F48D9FBB232AC6D9D1BB9F0BEA6E984C",
         "targetAbi": "10.11.11.0"
       }
-    ],
-    "owner": "yexi-by",
-    "category": "Metadata",
-    "description": "聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持校准并保存。"
+    ]
   }
 ]
