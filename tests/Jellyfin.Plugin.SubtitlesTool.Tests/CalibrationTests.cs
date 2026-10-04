@@ -66,8 +66,8 @@ public sealed class CalibrationTests : IDisposable
 
         {
             var store = new SubtitleStore(data);
-            path = await store.SaveDownloadAsync(first, candidate, bytes, false, default);
-            await store.SaveDownloadAsync(second, candidate, bytes, false, default);
+            path = await store.SaveDownloadAsync(first, candidate, bytes, default);
+            await store.SaveDownloadAsync(second, candidate, bytes, default);
             var info = await store.OpenAsync(first, Path.GetFileName(path), false, default);
             await store.CalibrateAsync(first, info.FileName, 30_000, info.CurrentHash, info.MediaStamp, default);
             await Assert.ThrowsAsync<ToolException>(() => store.CalibrateAsync(first, info.FileName, 32_000, info.CurrentHash, info.MediaStamp, default));
@@ -105,7 +105,7 @@ public sealed class CalibrationTests : IDisposable
         var data = Path.Combine(_directory, "plugin-data");
         var store = new SubtitleStore(data);
         var candidate = new SourceSubtitle("subtitlecat", "ABC-123", "srt", "zh-CN", null);
-        var path = await store.SaveDownloadAsync(target, candidate, original, false, default);
+        var path = await store.SaveDownloadAsync(target, candidate, original, default);
         Assert.Equal(expected, await File.ReadAllBytesAsync(path));
         long applied = 0;
         foreach (var offset in new long[] { 30_000, 2_000 })
@@ -130,10 +130,10 @@ public sealed class CalibrationTests : IDisposable
         var target = Target("ABC-123.mp4"); var bytes = Encoding.UTF8.GetBytes(Sample("srt"));
         var store = new SubtitleStore(Path.Combine(_directory, "plugin-data"));
         var candidate = new SourceSubtitle("subtitlecat", "name", "srt", "zh-CN", null);
-        var path = await store.SaveDownloadAsync(target, candidate, bytes, false, default);
+        var path = await store.SaveDownloadAsync(target, candidate, bytes, default);
         Assert.EndsWith("ABC-123.subtitlecat.zh-Hans.srt", path);
         Assert.Empty(Directory.GetFiles(Path.Combine(_directory, "plugin-data"), "original", SearchOption.AllDirectories));
-        await Assert.ThrowsAsync<ToolException>(() => store.SaveDownloadAsync(target, candidate, Encoding.UTF8.GetBytes(invalid), true, default));
+        await Assert.ThrowsAsync<ToolException>(() => store.SaveDownloadAsync(target, candidate, Encoding.UTF8.GetBytes(invalid), default));
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
     }
 
@@ -152,6 +152,34 @@ public sealed class CalibrationTests : IDisposable
         Assert.Single(current.Cues);
         await store.CalibrateAsync(target, current.FileName, 2000, current.CurrentHash, current.MediaStamp, default);
         Assert.Single(new SubtitleDocument(await File.ReadAllBytesAsync(path), "srt").Cues);
+        Assert.Empty(Directory.GetFiles(data, "original", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task DownloadAutomaticallyReplacesOtherSourcesLanguagesAndFormatsForOnlyThisVideo()
+    {
+        var target = Target("ABC-123-cd1.mp4"); var other = Target("ABC-123-cd1.1080p.mp4");
+        var data = Path.Combine(_directory, "data"); var store = new SubtitleStore(data);
+        var xunlei = new SourceSubtitle("xunlei", "ABC-123", "srt", null, null);
+        var initial = Encoding.UTF8.GetBytes(Sample("srt"));
+        var otherPath = await store.SaveDownloadAsync(other, xunlei, initial, default);
+        var previous = await store.SaveDownloadAsync(target, xunlei, initial, default);
+        foreach (var (source, language, format) in new[] { ("subtitlecat", "zh-CN", "ass"), ("subtitlecat", "zh-TW", "vtt"), ("xunlei", (string?)null, "srt") })
+        {
+            var bytes = Encoding.UTF8.GetBytes(Sample(format));
+            var current = await store.SaveDownloadAsync(target, new SourceSubtitle(source, "ABC-123", format, language, null), bytes, default);
+            Assert.False(File.Exists(previous));
+            Assert.Equal(Path.GetFileName(current), Assert.Single(store.List(target)).FileName);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(current));
+            Assert.Equal(initial, await File.ReadAllBytesAsync(otherPath));
+            Assert.Equal(2, Directory.GetFiles(data, "state.json", SearchOption.AllDirectories).Length);
+            previous = current;
+        }
+        var changed = new SubtitleDocument(initial, "srt").Shift(1500);
+        Assert.Equal(previous, await store.SaveDownloadAsync(target, xunlei, changed, default));
+        Assert.Single(store.List(target));
+        Assert.Equal(changed, await File.ReadAllBytesAsync(previous));
+        Assert.Empty(Directory.GetFiles(_directory, "*.tmp", SearchOption.AllDirectories));
         Assert.Empty(Directory.GetFiles(data, "original", SearchOption.AllDirectories));
     }
 

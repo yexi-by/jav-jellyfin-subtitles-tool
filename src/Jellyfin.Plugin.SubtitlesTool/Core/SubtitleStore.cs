@@ -17,12 +17,12 @@ public sealed class SubtitleStore(string dataPath)
     {
         var stem = Path.GetFileNameWithoutExtension(target.Path);
         return Directory.EnumerateFiles(Path.GetDirectoryName(target.Path)!)
-            .Where(path => Path.GetFileName(path).StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase) && SubtitleExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+            .Where(path => BelongsTo(stem, Path.GetFileName(path)) && SubtitleExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .Select(path => new SavedSubtitle(Path.GetFileName(path), Path.GetFileName(path), SubtitleFormats.Normalize(Path.GetExtension(path)), SubtitleFormats.Supports(Path.GetExtension(path)))).ToArray();
     }
 
-    public async Task<string> SaveDownloadAsync(MediaTarget target, SourceSubtitle subtitle, byte[] bytes, bool overwrite, CancellationToken cancellationToken)
+    public async Task<string> SaveDownloadAsync(MediaTarget target, SourceSubtitle subtitle, byte[] bytes, CancellationToken cancellationToken)
     {
         VideoTrimmer.CheckAvailable(target.Path);
         var current = new SubtitleDocument(bytes, subtitle.Format).Shift(0);
@@ -30,19 +30,34 @@ public sealed class SubtitleStore(string dataPath)
         var path = Path.Combine(Path.GetDirectoryName(target.Path)!, Path.GetFileNameWithoutExtension(target.Path) + suffix + "." + subtitle.Format);
         using var gate = await MediaFiles.EnterAsync(target.Path, cancellationToken);
         VideoTrimmer.CheckAvailable(target.Path);
-        if (!overwrite && File.Exists(path)) throw new ToolException($"同名字幕 {Path.GetFileName(path)} 已存在。替换吗？", 409);
-        if (new FileInfo(path).LinkTarget is not null) throw new ToolException("现有字幕是链接，请先在媒体目录中处理该链接。", 409);
+        var existing = List(target).Select(value => Path.Combine(Path.GetDirectoryName(target.Path)!, value.FileName)).ToArray();
+        if (existing.Append(path).Any(value => new FileInfo(value).LinkTarget is not null)) throw new ToolException("现有字幕是链接，请先在媒体目录中处理该链接。", 409);
         var directory = RecordDirectory(target, Path.GetFileName(path));
         Directory.CreateDirectory(directory);
-        var previous = File.Exists(path) ? await ReadSubtitle(path, cancellationToken) : null;
-        await SidecarWriter.WriteAsync(path, overwrite, current, cancellationToken);
-        try { await WriteState(directory, new CalibrationState(MediaFiles.Stamp(target.Path), Hash(current)), CancellationToken.None); }
+        var statePath = Path.Combine(directory, "state.json");
+        var oldStates = existing.Select(value => Path.Combine(RecordDirectory(target, Path.GetFileName(value)), "state.json")).ToArray();
+        var previous = new Dictionary<string, byte[]>(MediaTargets.PathComparer);
+        foreach (var value in existing) previous[value] = await ReadSubtitle(value, cancellationToken);
+        foreach (var value in oldStates.Append(statePath).Distinct(MediaTargets.PathComparer).Where(File.Exists)) previous[value] = await File.ReadAllBytesAsync(value, cancellationToken);
+        var temp = path + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(temp, current, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await WriteState(directory, new CalibrationState(MediaFiles.Stamp(target.Path), Hash(current)), cancellationToken);
+            // 输出已经就绪后，先移除其他字幕，再发布这一份；处理中也不会新增第二份字幕。
+            foreach (var value in existing.Where(value => !MediaTargets.PathComparer.Equals(value, path))) File.Delete(value);
+            File.Move(temp, path, true);
+            foreach (var value in oldStates.Where(value => !MediaTargets.PathComparer.Equals(value, statePath) && File.Exists(value))) File.Delete(value);
+        }
         catch
         {
-            if (previous is null) File.Delete(path);
-            else await SidecarWriter.WriteAsync(path, true, previous, CancellationToken.None);
+            if (!previous.ContainsKey(path)) File.Delete(path);
+            if (!previous.ContainsKey(statePath)) File.Delete(statePath);
+            foreach (var (value, content) in previous) await SidecarWriter.WriteAsync(value, content, CancellationToken.None);
             throw;
         }
+        finally { File.Delete(temp); }
         return path;
     }
 
@@ -78,9 +93,9 @@ public sealed class SubtitleStore(string dataPath)
         if (Hash(before) != currentHash || state.CurrentHash != currentHash || MediaFiles.Stamp(target.Path) != mediaStamp || state.MediaStamp != mediaStamp)
             throw new ToolException("视频或字幕已发生变化，请重新打开校准面板。", 409);
         var bytes = new SubtitleDocument(before, SubtitleFormats.Normalize(Path.GetExtension(path))).Shift(offsetMilliseconds);
-        await SidecarWriter.WriteAsync(path, true, bytes, cancellationToken);
+        await SidecarWriter.WriteAsync(path, bytes, cancellationToken);
         try { await WriteState(directory, state with { CurrentHash = Hash(bytes) }, CancellationToken.None); }
-        catch { await SidecarWriter.WriteAsync(path, true, before, CancellationToken.None); throw; }
+        catch { await SidecarWriter.WriteAsync(path, before, CancellationToken.None); throw; }
         return path;
     }
 
@@ -93,11 +108,18 @@ public sealed class SubtitleStore(string dataPath)
     {
         var stem = Path.GetFileNameWithoutExtension(target.Path);
         if (string.IsNullOrWhiteSpace(subtitleId) || subtitleId != Path.GetFileName(subtitleId)
-            || !subtitleId.StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase)
+            || !BelongsTo(stem, subtitleId)
             || !SubtitleFormats.Supports(Path.GetExtension(subtitleId))) throw new ToolException("字幕不属于当前视频，或格式不支持校准。", 404);
         var path = Path.Combine(Path.GetDirectoryName(target.Path)!, subtitleId);
         if (!File.Exists(path) || new FileInfo(path).LinkTarget is not null) throw new ToolException("字幕文件不存在，或是不可编辑的链接。", 404);
         return path;
+    }
+    private static bool BelongsTo(string stem, string fileName)
+    {
+        if (!fileName.StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase)) return false;
+        var suffix = fileName[(stem.Length + 1)..];
+        // 来源标记前还有名称时，属于同目录中名称更长的另一个视频版本。
+        return !suffix.Contains(".xunlei.", StringComparison.OrdinalIgnoreCase) && !suffix.Contains(".subtitlecat.", StringComparison.OrdinalIgnoreCase);
     }
     private static async Task<byte[]> ReadSubtitle(string path, CancellationToken token)
     {
@@ -114,5 +136,5 @@ public sealed class SubtitleStore(string dataPath)
         try { return JsonSerializer.Deserialize<CalibrationState>(await File.ReadAllBytesAsync(path, token), JsonOptions) ?? throw new JsonException(); }
         catch (JsonException) { throw new ToolException("校准记录损坏，请检查插件数据目录中的记录。", 409); }
     }
-    private static Task WriteState(string directory, CalibrationState state, CancellationToken token) => SidecarWriter.WriteAsync(Path.Combine(directory, "state.json"), true, JsonSerializer.SerializeToUtf8Bytes(state, JsonOptions), token);
+    private static Task WriteState(string directory, CalibrationState state, CancellationToken token) => SidecarWriter.WriteAsync(Path.Combine(directory, "state.json"), JsonSerializer.SerializeToUtf8Bytes(state, JsonOptions), token);
 }

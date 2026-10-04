@@ -121,7 +121,7 @@ button:disabled {
 [hidden] { display: none !important; }
 .danger { background: #a12b32; color: #fff; border-color: #f5a0a050; }
 .danger:hover { background: #bb3540; }
-.trim-controls { border-bottom: 1px solid #ffffff20; padding-bottom: 18px; display: flex; flex-direction: column; gap: 10px; }
+.trim-controls { border-bottom: 1px solid #ffffff20; padding-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
 .trim-confirm { width: min(560px, calc(100vw - 32px)); height: fit-content; max-height: calc(100dvh - 32px); margin: auto; padding: 24px; box-sizing: border-box; overflow: auto; }
 .trim-confirm h2 { margin-top: 0; font-size: 20px; }
 .trim-review { white-space: pre-line; overflow-wrap: anywhere; }
@@ -222,29 +222,10 @@ progress {
     margin-bottom: 20px
 }
 
-.confirm {
-    padding: 16px 28px 24px;
-    border-top: 1px solid #ffffff20;
-    background: #25252b
-}
-
-.confirm p {
-    overflow-wrap: anywhere
-}
-
 .confirm-actions {
     display: flex;
     gap: 10px;
     justify-content: flex-end
-}
-
-.confirm[hidden],
-progress[hidden] {
-    display: none
-}
-
-.existing {
-    overflow-wrap: anywhere
 }
 
 input, select, textarea { font: inherit; color: var(--text); background: #222731; border: 1px solid #ffffff30; border-radius: 8px; padding: 10px 12px; min-height: 44px; max-width: 100%; }
@@ -268,20 +249,39 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .saved-row span { overflow-wrap: anywhere; min-width: 0; font-size: 14px; }
 .saved-row button { flex: none; }
 .calibration { width: min(1240px, calc(100vw - 48px)); }
-.calibration-body { padding: 20px 28px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr); grid-auto-rows: max-content; align-content: start; gap: 24px; overflow: auto; min-height: 0; }
-.video-box { position: relative; background: #000; align-self: start; border-radius: 10px; overflow: hidden; }
-.video-box video { width: 100%; max-height: 65dvh; display: block; min-height: 180px; }
+.calibration header { padding: 16px 24px 12px; }
+.calibration header .eyebrow { margin-bottom: 4px; }
+.calibration h1 { font-size: 18px; }
+.calibration-body { padding: 16px 24px 20px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 1fr); align-content: start; gap: 20px; overflow: auto; min-height: 0; flex: 1; }
+.calibration-media { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
+.video-box { position: relative; background: #000; border-radius: 10px; overflow: hidden; flex: none; }
+.video-box video { width: 100%; height: min(38dvh, 360px); object-fit: contain; display: block; }
 .caption-overlay { position: absolute; bottom: 16%; left: 4%; width: 92%; pointer-events: none; text-align: center; color: #fff; white-space: pre-line; font: 600 clamp(16px, 1.8vw, 24px)/1.4 sans-serif; text-shadow: 0 1px 3px #000, 1px 0 3px #000, -1px 0 3px #000; }
-.calibration-controls { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cue-list { width: 100%; font-size: 13px; min-height: 180px; }
+.calibration-controls { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.calibration .section-title { margin: 0; }
+.calibration p { margin: 4px 0; line-height: 1.45; }
+.calibration .muted, .calibration .status-text { font-size: 13px; }
+.calibration .field-label { flex-direction: row; align-items: center; justify-content: space-between; }
+.calibration .field-label input { width: 130px; flex: none; }
+.subtitle-timeline { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 160px; }
+.subtitle-file { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cue-list { width: 100%; font-size: 13px; min-height: 120px; flex: 1; }
 .cue-list option { padding: 5px; }
-.cue-text { white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; background: #ffffff08; padding: 10px; border-radius: 8px; min-height: 52px; max-height: 150px; overflow: auto; }
+.cue-text { white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; background: #ffffff08; padding: 6px 10px; border-radius: 8px; height: 52px; flex: none; overflow: auto; }
 .adjust { display: flex; flex-wrap: wrap; gap: 8px; }
 .adjust button { flex: 1; font-size: 14px; }
 
 @media(max-width:900px) {
-    .calibration-body { grid-template-columns: minmax(0, 1fr); }
-    .video-box video { max-height: 42dvh; }
+    .calibration-body { display: flex; flex-direction: column; }
+    .calibration-media, .calibration-body > .calibration-controls { display: contents; }
+    .video-box { order: 0; }
+    .trim-controls { order: 1; }
+    .subtitle-timeline { order: 2; flex: none; }
+    .subtitle-adjustments { order: 3; }
+    .calibration-body .status-text { order: 4; }
+    .calibration-body .confirm-actions { order: 5; }
+    .cue-list { height: 160px; flex: none; }
+    .video-box video { height: min(30dvh, 300px); }
 }
 
 @media(max-width:600px) {
@@ -334,10 +334,6 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 
     .name {
         font-size: 15px
-    }
-
-    .confirm {
-        padding: 14px 18px max(20px, env(safe-area-inset-bottom))
     }
 
     .toolbar button {

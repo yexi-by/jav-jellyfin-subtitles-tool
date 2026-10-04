@@ -1,6 +1,6 @@
 import css from './style.css?inline';
 import { applyEvent, readEvents, targetStatus, type Candidate, type MediaInfo, type TargetState } from './logic';
-import { button, message, node, request, RequestError } from './ui';
+import { button, message, node, request } from './ui';
 
 function itemId(): string | null {
   if (!/\/details(?:\?|$)|\/item(?:\?|$)/.test(location.hash)) return null;
@@ -38,7 +38,6 @@ class Panel {
   private readonly saved = node('div', 'saved');
   private readonly status = node('div', 'status');
   private readonly list = node('div', 'candidates');
-  private readonly confirm = node('div', 'confirm');
   private readonly abort = new AbortController();
   private readonly states = new Map<string, TargetState>();
   private readonly searches = new Map<string, AbortController>();
@@ -85,8 +84,7 @@ class Panel {
     this.sourceFilter.addEventListener('change', () => this.render()); filterLabel.append(this.sourceFilter); tools.append(filterLabel);
     this.status.setAttribute('role', 'status'); this.status.setAttribute('aria-live', 'polite');
     const content = node('div', 'content'); content.append(this.saved, this.list);
-    this.confirm.hidden = true; this.confirm.setAttribute('role', 'alertdialog'); this.confirm.setAttribute('aria-label', '替换已有字幕');
-    layout.append(header, targetToolbar, this.parts, queryToolbar, tools, this.status, content, this.confirm);
+    layout.append(header, targetToolbar, this.parts, queryToolbar, tools, this.status, content);
     this.dialog.append(layout); document.body.append(this.host); this.dialog.showModal();
     history.pushState({ ...history.state, subtitlesTool: true }, '', location.href); void this.initialize();
   }
@@ -125,7 +123,7 @@ class Panel {
     }
   }
   private select(id: string, autoSearch = true): void {
-    this.selected = id; this.confirm.hidden = true; this.list.inert = false;
+    this.selected = id;
     const state = this.current(); if (!state) return;
     this.query.value = state.query; this.title.textContent = state.info.fileName; this.render();
     if (autoSearch && state.status === 'idle' && (state.query || state.info.hasRecord)) void this.search(id);
@@ -178,7 +176,7 @@ class Panel {
       if (candidate.source === 'subtitlecat' && candidate.language) badges.append(node('span', 'badge', candidate.language));
       details.append(badges, node('p', 'muted', candidate.match));
       if (candidate.unavailableReason) details.append(node('p', 'muted', candidate.unavailableReason));
-      const save = button('下载', () => void this.download(state, candidate, false), 'primary');
+      const save = button('下载', () => void this.download(state, candidate), 'primary');
       save.disabled = this.busyDownload || !candidate.canDownload; save.setAttribute('aria-label', `下载 ${candidate.name}`);
       card.append(details, save); this.list.append(card);
     }
@@ -190,7 +188,7 @@ class Panel {
     const cancel = () => controller.abort(); this.abort.signal.addEventListener('abort', cancel, { once: true });
     state.status = 'searching'; state.sources = {}; state.notice = ''; state.progress = '';
     if (!computeHash) state.candidates = [];
-    this.confirm.hidden = true; this.list.inert = false; this.render();
+    this.render();
     let terminal = false;
     try {
       const response = await request(this.root + '/search', controller.signal, { targetId: id, query: state.query, subtitleCatLanguage: this.language.value, computeHash });
@@ -217,20 +215,15 @@ class Panel {
     const worker = async () => { while (next < queue.length && !this.abort.signal.aborted) await this.search(queue[next++]); };
     await Promise.all([worker(), worker()]);
   }
-  private async download(state: TargetState, candidate: Candidate, overwrite: boolean): Promise<void> {
+  private async download(state: TargetState, candidate: Candidate): Promise<void> {
     this.busyDownload = true; state.notice = '正在下载并保存到这一段视频旁…'; this.render();
     try {
-      const result = await (await request(this.root + '/download', this.abort.signal, { targetId: state.info.id, candidateId: candidate.id, overwrite })).json() as { message: string; refreshed: boolean };
+      const result = await (await request(this.root + '/download', this.abort.signal, { targetId: state.info.id, candidateId: candidate.id })).json() as { message: string; refreshed: boolean };
       await this.loadInfo(); state.notice = result.message;
       if (result.refreshed) await refreshDetails(this.id, state.info.versionId, this.abort.signal);
     } catch (error) {
       if (this.abort.signal.aborted) return;
-      if (error instanceof RequestError && error.status === 409) {
-        const cancel = button('保留当前字幕', () => { this.confirm.hidden = true; this.list.inert = false; state.notice = '已保留当前字幕。'; this.render(); });
-        const replace = button('替换字幕', () => { this.confirm.hidden = true; this.list.inert = false; void this.download(state, candidate, true); }, 'primary');
-        const actions = node('div', 'confirm-actions'); actions.append(cancel, replace);
-        this.confirm.replaceChildren(node('p', '', error.message), actions); this.confirm.hidden = false; this.list.inert = true; cancel.focus();
-      } else state.notice = message(error);
+      state.notice = message(error);
     } finally { this.busyDownload = false; if (!this.abort.signal.aborted) this.render(); }
   }
   private async calibrate(state: TargetState, subtitleId: string | null): Promise<void> {

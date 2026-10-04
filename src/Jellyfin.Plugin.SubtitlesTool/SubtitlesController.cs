@@ -25,7 +25,7 @@ public sealed class SubtitlesController(ILibraryManager library, IMediaSourceMan
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public sealed record SearchRequest(Guid TargetId, string Query, string SubtitleCatLanguage = "zh", bool ComputeHash = false);
-    public sealed record DownloadRequest(Guid TargetId, string CandidateId, bool Overwrite = false);
+    public sealed record DownloadRequest(Guid TargetId, string CandidateId);
     public sealed record CalibrationOpenRequest(Guid TargetId, string SubtitleId, bool Restart = false);
     public sealed record CalibrationSaveRequest(Guid TargetId, string SubtitleId, long OffsetMilliseconds, string CurrentHash, string MediaStamp);
     public sealed record TrimPlanRequest(Guid TargetId, double RequestedMilliseconds);
@@ -99,8 +99,8 @@ public sealed class SubtitlesController(ILibraryManager library, IMediaSourceMan
             var target = Select(targets.Enumerate(await RootAsync(itemId)), body.TargetId);
             var candidate = search.Resolve(body.CandidateId, target.Path);
             var bytes = await search.DownloadAsync(candidate, cancellationToken);
-            var path = await subtitles.SaveDownloadAsync(target, candidate.Subtitle, bytes, body.Overwrite, cancellationToken);
-            return await Refresh(target, path, "字幕已保存，可以在播放器中选择。");
+            var path = await subtitles.SaveDownloadAsync(target, candidate.Subtitle, bytes, cancellationToken);
+            return await Refresh(target, path, "当前字幕已更新，可以播放核对并校准。");
         }
         catch (Exception ex) when (IsUserError(ex)) { return ErrorResult(ex); }
     }

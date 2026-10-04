@@ -13,7 +13,7 @@ export async function request(path: string, signal: AbortSignal, body?: unknown,
   if (!client) throw new Error('Jellyfin 尚未完成加载，请稍后重试。');
   const response = await fetch(client.getUrl(path), {
     method: method ?? (body === undefined ? 'GET' : 'POST'), signal,
-    headers: { Authorization: `MediaBrowser ${deviceId ? `Client="JAV Subtitles Tool", Device="Browser", DeviceId="${deviceId}", Version="0.4.0.0", ` : ''}Token="${client.accessToken()}"`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    headers: { Authorization: `MediaBrowser ${deviceId ? `Client="JAV Subtitles Tool", Device="Browser", DeviceId="${deviceId}", Version="0.4.1.0", ` : ''}Token="${client.accessToken()}"`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   if (!response.ok) {

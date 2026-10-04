@@ -78,17 +78,15 @@ public sealed class FileWorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task ReplacementRequiresConfirmationAndCancellationKeepsExistingBytes()
+    public async Task ReplacementIsAutomaticAndCancellationKeepsExistingBytes()
     {
         var path = Video("字幕.srt");
         await File.WriteAllTextAsync(path, "old subtitle");
         var bytes = Encoding.Unicode.GetBytes("新字幕，保留编码");
-        var conflict = await Assert.ThrowsAsync<ToolException>(() => SidecarWriter.WriteAsync(path, false, bytes, default));
-        Assert.Equal(409, conflict.Status);
         using var canceled = new CancellationTokenSource(); canceled.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SidecarWriter.WriteAsync(path, true, bytes, canceled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SidecarWriter.WriteAsync(path, bytes, canceled.Token));
         Assert.Equal("old subtitle", await File.ReadAllTextAsync(path));
-        await SidecarWriter.WriteAsync(path, true, bytes, default);
+        await SidecarWriter.WriteAsync(path, bytes, default);
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
         Assert.Empty(Directory.GetFiles(_directory, "*.tmp"));
     }

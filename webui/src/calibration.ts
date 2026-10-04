@@ -19,12 +19,11 @@ export function openCalibration(root: string, target: MediaTarget, subtitleId: s
     const video = node('video'); video.controls = true; video.playsInline = true; video.preload = 'metadata';
     const overlay = node('div', 'caption-overlay'); overlay.setAttribute('aria-hidden', 'true');
     const videoBox = node('div', 'video-box'); videoBox.append(video, overlay);
-    const cueList = node('select', 'cue-list'); cueList.size = 9; cueList.setAttribute('aria-label', '选择要对齐的字幕');
+    const cueList = node('select', 'cue-list'); cueList.size = 6; cueList.setAttribute('aria-label', '选择要对齐的字幕');
     const cueText = node('p', 'cue-text');
-    const subtitleChoice = node('select'); subtitleChoice.setAttribute('aria-label', '校准的字幕');
-    const subtitleLabel = node('label', 'field-label', '校准的字幕'); subtitleLabel.append(subtitleChoice);
-    for (const subtitle of target.subtitles.filter(value => value.canCalibrate)) { const option = node('option', '', subtitle.fileName); option.value = subtitle.id; subtitleChoice.append(option); }
-    subtitleChoice.value = subtitleId ?? subtitleChoice.options[0]?.value ?? ''; subtitleId = subtitleChoice.value;
+    const subtitle = target.subtitles.find(value => value.canCalibrate && value.id === subtitleId) ?? target.subtitles.find(value => value.canCalibrate);
+    subtitleId = subtitle?.id ?? null;
+    const subtitleLabel = node('p', 'muted subtitle-file', subtitle?.fileName ?? '当前没有可校准的外挂字幕'); subtitleLabel.title = subtitle?.fileName ?? '';
     const offset = node('input'); offset.type = 'number'; offset.step = '0.001'; offset.min = '-86400'; offset.max = '86400'; offset.value = '0';
     const offsetLabel = node('label', 'field-label', '本次调整（秒，正数延后，负数提前）'); offsetLabel.append(offset);
     const status = node('p', 'status-text'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
@@ -56,7 +55,7 @@ export function openCalibration(root: string, target: MediaTarget, subtitleId: s
       const cue = selectedCue(); cueText.textContent = cue ? `${timeLabel(cue.startMilliseconds + shift)} → ${timeLabel(cue.endMilliseconds + shift)}\n${cue.text}` : '';
       save.disabled = saving || trimming() || !calibration || !Number.isFinite(shift) || !offset.validity.valid;
       anchor.disabled = saving || trimming() || !calibration || video.readyState < 1;
-      subtitleChoice.disabled = saving || trimming(); offset.disabled = saving || trimming();
+      offset.disabled = saving || trimming();
       locate.disabled = locating || saving || trimming() || !cutPoint.validity.valid;
       permanent.disabled = !trimPlan || locating || saving || trimming();
       usePosition.disabled = trimming() || video.readyState < 1;
@@ -101,9 +100,12 @@ export function openCalibration(root: string, target: MediaTarget, subtitleId: s
     const controls = node('div', 'calibration-controls'); const adjust = node('div', 'adjust');
     adjust.append(button('提前 0.5 秒', () => nudge(-0.5)), button('延后 0.5 秒', () => nudge(0.5)));
     const actions = node('div', 'adjust'); actions.append(seek, anchor);
-    const persistence = node('div', 'adjust'); persistence.append(save);
-    const subtitleControls = node('div', 'calibration-controls'); subtitleControls.append(node('h2', 'section-title', '字幕时间轴'), subtitleLabel, cueList, cueText, actions, offsetLabel, adjust, persistence,
-      node('p', 'muted', '每次保存直接调整当前字幕，不保留原稿。提前到 0 秒之前的条目会裁去，之后无法恢复。'));
+    adjust.append(save);
+    const timeline = node('section', 'subtitle-timeline'); timeline.append(node('h2', 'section-title', '字幕时间轴'), subtitleLabel);
+    if (subtitleId) timeline.append(cueList);
+    else timeline.append(node('p', 'muted', '下载字幕后，可在这里选择对白并校准。'));
+    const subtitleControls = node('section', 'calibration-controls subtitle-adjustments'); subtitleControls.append(node('h2', 'section-title', '校准字幕'), cueText, actions, offsetLabel, adjust,
+      node('p', 'muted', '保存直接调整字幕；零点前被裁去的条目无法恢复。'));
     function clearPlan(): void { planGeneration++; trimPlan = undefined; cutSummary.textContent = '选择正片起点，定位之后的首个关键帧。'; paint(); }
     const usePosition = button('用当前播放位置', () => { video.pause(); cutPoint.value = (Math.round(video.currentTime * 1000) / 1000).toString(); clearPlan(); });
     const locate = button('定位关键帧', () => void locateCut());
@@ -127,14 +129,13 @@ export function openCalibration(root: string, target: MediaTarget, subtitleId: s
     const commitActions = node('div', 'adjust'); commitActions.append(permanent, cancelTrim);
     const trimControls = node('div', 'trim-controls'); trimControls.hidden = !canTrim;
     trimControls.append(node('h2', 'section-title', '永久裁切片头'), cutLabel, trimActions, cutSummary, commitActions, trimProgress,
-      node('p', 'muted', '直接替换当前版本的这一段视频，不保留原视频或广告片段。音画保持原画质，字幕时间保持当前设置。关闭窗口后任务继续，可重新打开查看。'));
+      node('p', 'muted', '原画质替换视频，字幕时间保持。关闭窗口后任务继续。'));
     controls.append(trimControls, subtitleControls, status, errorActions);
-    if (!subtitleId) controls.append(node('p', 'muted', '当前没有可校准的外挂字幕，下载后可在这里对齐对白。'));
-    const body = node('div', 'calibration-body'); body.append(videoBox, controls); layout.append(header, body); dialog.append(layout); shadow.append(style, dialog, confirmation); document.body.append(host); dialog.showModal();
+    const media = node('div', 'calibration-media'); media.append(videoBox, timeline);
+    const body = node('div', 'calibration-body'); body.append(media, controls); layout.append(header, body); dialog.append(layout); shadow.append(style, dialog, confirmation); document.body.append(host); dialog.showModal();
     dialog.addEventListener('cancel', event => { event.preventDefault(); close(); }); parentSignal.addEventListener('abort', close, { once: true });
     offset.addEventListener('input', paint); cueList.addEventListener('change', paint); video.addEventListener('timeupdate', paint); video.addEventListener('loadedmetadata', paint);
     cutPoint.addEventListener('input', clearPlan);
-    subtitleChoice.addEventListener('change', () => { subtitleId = subtitleChoice.value; void load(); });
     video.addEventListener('error', () => fail(new Error('视频预览加载失败，请检查 Jellyfin 的播放权限与转码日志。')));
 
     async function stopPreview(): Promise<void> {
