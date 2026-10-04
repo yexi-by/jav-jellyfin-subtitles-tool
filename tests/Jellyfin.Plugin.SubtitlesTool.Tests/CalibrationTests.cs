@@ -93,6 +93,22 @@ public sealed class CalibrationTests : IDisposable
 
     [Theory]
     [InlineData("utf-8", false)][InlineData("utf-8", true)][InlineData("utf-16", true)]
+    public void AddsMissingSrtSequenceNumbersWithoutChangingTheDialogueOrEncoding(string name, bool bom)
+    {
+        var text = "00:00:01,687 --> 00:00:03,807\r\n<b>第一句</b>\r\n\r\n00:00:04,206 --> 00:00:07,718\r\n第二句\r\n";
+        var encoding = Encoding.GetEncoding(name);
+        var preamble = bom ? encoding.GetPreamble() : [];
+        var bytes = preamble.Concat(encoding.GetBytes(text)).ToArray();
+        var expected = "1\r\n" + text.Replace("\r\n\r\n00:00:04", "\r\n\r\n2\r\n00:00:04");
+        var document = new SubtitleDocument(bytes, "srt");
+        Assert.Equal(preamble.Concat(encoding.GetBytes(expected)).ToArray(), document.Shift(0));
+        Assert.Equal(document.Shift(0), new SubtitleDocument(document.Shift(0), "srt").Shift(0));
+        Assert.Equal("第一句", document.Cues[0].Text);
+        Assert.Equal("第二句", document.Cues[1].Text);
+    }
+
+    [Theory]
+    [InlineData("utf-8", false)][InlineData("utf-8", true)][InlineData("utf-16", true)]
     public async Task RepairsSrtTimeLinesAndAdjustsCurrentBytesWithoutKeepingTheDownload(string name, bool bom)
     {
         var target = Target("ABC-123.mp4");

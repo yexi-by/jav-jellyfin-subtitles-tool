@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'fetch-speech.ps1')
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $projectFile = Join-Path $projectRoot 'src/Jellyfin.Plugin.SubtitlesTool/Jellyfin.Plugin.SubtitlesTool.csproj'
 [xml]$project = Get-Content -LiteralPath $projectFile -Raw
@@ -11,18 +12,22 @@ New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
 $archivePath = Join-Path $artifactDirectory "jav-jellyfin-subtitles-tool_$version.zip"
 $outputDirectory = Join-Path $projectRoot 'src/Jellyfin.Plugin.SubtitlesTool/bin/Release/net9.0'
 $files = @('Jellyfin.Plugin.SubtitlesTool.dll', 'Jellyfin.Plugin.SubtitlesTool.deps.json', 'AngleSharp.dll', 'UtfUnknown.dll') | ForEach-Object { Join-Path $outputDirectory $_ }
+$files += @(Join-Path $outputDirectory 'Microsoft.ML.OnnxRuntime.dll')
+$files += @(Join-Path $outputDirectory 'System.Numerics.Tensors.dll')
+$files += @(Join-Path $outputDirectory 'Microsoft.ML.Tokenizers.dll'), @(Join-Path $outputDirectory 'Google.Protobuf.dll')
+$files += @(Join-Path $projectRoot 'artifacts/speech/speech-assets.zip')
 $files += @((Join-Path $projectRoot 'LICENSE'), (Join-Path $projectRoot 'THIRD-PARTY-NOTICES.txt'), (Join-Path $projectRoot 'third-party'))
 Compress-Archive -LiteralPath $files -DestinationPath $archivePath -Force
 $entry = @{
     guid = 'c4b75732-8527-4f58-9cdf-18efca21a9e5'
     name = 'JAV Subtitles Tool'
-    description = '聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持永久裁切片头及手动校准。'
-    overview = '关键帧对齐裁切、直接替换视频、迅雷全部候选及 SubtitleCat 语言选择。'
+    description = '聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持下载替换及字幕校准。'
+    overview = '预览后校准当前唯一字幕，视频始终只读。'
     owner = 'yexi-by'
     category = 'Metadata'
     versions = @(@{
         version = $version
-        changelog = '调整裁切与校准布局：视频和字幕时间轴位于左侧，裁切与校准按钮位于右侧，主要操作尽量在一页内显示。每段视频只保留一份外挂字幕，下载新的默认替换当前字幕及校准记录，不保留恢复副本。'
+        changelog = '自动校准使用本地 CPU 识别实际台词、LLM 确认具体字幕对应，再计算固定偏移；支持输出校验、错误反馈、有限重试、自定义参数、对白预览、音轨选择和取消。完整移除视频裁切，视频始终只读。保留单字幕替换及手动校准。'
         targetAbi = '10.11.11.0'
         sourceUrl = "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v$version/jav-jellyfin-subtitles-tool_$version.zip"
         checksum = (Get-FileHash -LiteralPath $archivePath -Algorithm MD5).Hash.ToUpperInvariant()

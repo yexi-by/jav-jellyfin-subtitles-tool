@@ -24,12 +24,10 @@ public sealed class SubtitleStore(string dataPath)
 
     public async Task<string> SaveDownloadAsync(MediaTarget target, SourceSubtitle subtitle, byte[] bytes, CancellationToken cancellationToken)
     {
-        VideoTrimmer.CheckAvailable(target.Path);
         var current = new SubtitleDocument(bytes, subtitle.Format).Shift(0);
         var suffix = "." + subtitle.Source + (subtitle.Source == "subtitlecat" && subtitle.Language is not null ? "." + SubtitleFormats.FileLanguage(subtitle.Language) : "");
         var path = Path.Combine(Path.GetDirectoryName(target.Path)!, Path.GetFileNameWithoutExtension(target.Path) + suffix + "." + subtitle.Format);
         using var gate = await MediaFiles.EnterAsync(target.Path, cancellationToken);
-        VideoTrimmer.CheckAvailable(target.Path);
         var existing = List(target).Select(value => Path.Combine(Path.GetDirectoryName(target.Path)!, value.FileName)).ToArray();
         if (existing.Append(path).Any(value => new FileInfo(value).LinkTarget is not null)) throw new ToolException("现有字幕是链接，请先在媒体目录中处理该链接。", 409);
         var directory = RecordDirectory(target, Path.GetFileName(path));
@@ -63,9 +61,7 @@ public sealed class SubtitleStore(string dataPath)
 
     public async Task<CalibrationInfo> OpenAsync(MediaTarget target, string subtitleId, bool restart, CancellationToken cancellationToken)
     {
-        VideoTrimmer.CheckAvailable(target.Path);
         using var gate = await MediaFiles.EnterAsync(target.Path, cancellationToken);
-        VideoTrimmer.CheckAvailable(target.Path);
         var path = Resolve(target, subtitleId);
         var bytes = await ReadSubtitle(path, cancellationToken);
         var hash = Hash(bytes);
@@ -83,9 +79,7 @@ public sealed class SubtitleStore(string dataPath)
 
     public async Task<string> CalibrateAsync(MediaTarget target, string subtitleId, long offsetMilliseconds, string currentHash, string mediaStamp, CancellationToken cancellationToken)
     {
-        VideoTrimmer.CheckAvailable(target.Path);
         using var gate = await MediaFiles.EnterAsync(target.Path, cancellationToken);
-        VideoTrimmer.CheckAvailable(target.Path);
         var path = Resolve(target, subtitleId);
         var directory = RecordDirectory(target, subtitleId);
         var state = await ReadState(directory, cancellationToken) ?? throw new ToolException("请重新打开校准面板。", 409);
@@ -97,11 +91,6 @@ public sealed class SubtitleStore(string dataPath)
         try { await WriteState(directory, state with { CurrentHash = Hash(bytes) }, CancellationToken.None); }
         catch { await SidecarWriter.WriteAsync(path, before, CancellationToken.None); throw; }
         return path;
-    }
-
-    public void ForgetVideo(MediaTarget target)
-    {
-        foreach (var subtitle in List(target)) File.Delete(Path.Combine(RecordDirectory(target, subtitle.Id), "state.json"));
     }
 
     private static string Resolve(MediaTarget target, string subtitleId)

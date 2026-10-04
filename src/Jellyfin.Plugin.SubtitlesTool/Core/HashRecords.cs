@@ -47,7 +47,6 @@ public sealed class HashRecords : IDisposable
 
     private async Task<(HashPair Pair, bool Created)> GetOrCreateCoreAsync(string mediaPath, Func<HashProgress, Task> progress, Func<bool>? isIdle, CancellationToken cancellationToken)
     {
-        VideoTrimmer.CheckAvailable(mediaPath);
         var existing = isIdle is null ? await ReadAsync(mediaPath, cancellationToken) : null;
         if (existing is not null) return (existing, false);
         var interactive = isIdle is null;
@@ -106,7 +105,6 @@ public sealed class HashRecords : IDisposable
                 }
                 cancellationToken.ThrowIfCancellationRequested();
                 using var publish = await MediaFiles.EnterAsync(mediaPath, cancellationToken);
-                VideoTrimmer.CheckAvailable(mediaPath);
                 if (MediaFiles.Stamp(mediaPath) != mediaStamp) throw new ToolException("计算期间视频发生变化，请重新计算。");
                 File.Move(temp, RecordPath(mediaPath));
                 return (pair, true);
@@ -122,7 +120,6 @@ public sealed class HashRecords : IDisposable
 
     public static async Task<HashPair> CalculateAsync(string mediaPath, Func<HashProgress, Task> progress, CancellationToken cancellationToken)
     {
-        VideoTrimmer.CheckAvailable(mediaPath);
         var before = new FileInfo(mediaPath);
         var size = before.Length;
         var modified = before.LastWriteTimeUtc;
@@ -167,7 +164,6 @@ public sealed class HashRecords : IDisposable
             }
         }
         cancellationToken.ThrowIfCancellationRequested();
-        VideoTrimmer.CheckAvailable(mediaPath);
         var after = new FileInfo(mediaPath);
         if (!after.Exists || after.Length != size || after.LastWriteTimeUtc != modified || read != size)
             throw new ToolException("计算期间视频文件发生变化，请等待文件写入完成后重试。");

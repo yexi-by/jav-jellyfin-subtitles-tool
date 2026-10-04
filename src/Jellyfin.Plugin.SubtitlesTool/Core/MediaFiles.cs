@@ -1,6 +1,6 @@
 namespace Jellyfin.Plugin.SubtitlesTool.Core;
 
-/// <summary>按视频路径串行发布视频、字幕和指纹文件。</summary>
+/// <summary>按视频路径串行保存字幕和指纹文件。</summary>
 public static class MediaFiles
 {
     private static readonly SemaphoreSlim[] Gates = Enumerable.Range(0, 32).Select(_ => new SemaphoreSlim(1, 1)).ToArray();

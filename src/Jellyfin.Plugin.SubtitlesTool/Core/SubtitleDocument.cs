@@ -7,7 +7,7 @@ namespace Jellyfin.Plugin.SubtitlesTool.Core;
 
 public sealed record SubtitleCue(int Index, long StartMilliseconds, long EndMilliseconds, string Text);
 
-/// <summary>修正 SRT 时间行并调整时间字段，保留其他文本、样式、换行及原始编码。</summary>
+/// <summary>修正 SRT 序号和时间行并调整时间字段，保留其他文本、样式、换行及原始编码。</summary>
 public sealed class SubtitleDocument
 {
     private const string Clock = @"(?:\d{1,3}:)?\d{2}:\d{2}[,.]\d{2,3}";
@@ -50,6 +50,20 @@ public sealed class SubtitleDocument
             if (start == match.Groups["start"].Value && end == match.Groups["end"].Value && Timing.IsMatch(match.Value)) return match.Value;
             return start + " --> " + end + match.Groups["suffix"].Value;
         });
+        if (format == "srt")
+        {
+            var sequence = 0;
+            var newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            var original = text;
+            text = Timing.Replace(original, match =>
+            {
+                sequence++;
+                // 无序号的时间块可被校准解析器识别，但 Jellyfin 的 FFprobe 无法识别为 SRT。
+                var previousStart = match.Index < 2 ? 0 : original.LastIndexOf('\n', match.Index - 2) + 1;
+                var previous = original.AsSpan(previousStart, match.Index - previousStart).Trim();
+                return previous.Length == 0 ? sequence.ToString(CultureInfo.InvariantCulture) + newline + match.Value : match.Value;
+            });
+        }
         _baseline = text == decoded ? bytes : [.. _preamble, .. _encoding.GetBytes(text)];
         if (format is "ass" or "ssa") ParseAss(text);
         else ParseBlocks(text);

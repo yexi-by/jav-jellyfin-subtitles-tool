@@ -1,4 +1,5 @@
 using System.Text;
+using System.Security.Cryptography;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Builder;
@@ -21,6 +22,7 @@ public sealed class WebIntegration(IServerConfigurationManager configuration) : 
             }, StringComparer.Ordinal);
         if (!assets.ContainsKey("subtitles-tool.js")) throw new InvalidOperationException("缺少前端资源。");
         var version = assembly.GetName().Version!.ToString();
+        var entryHash = Convert.ToHexString(SHA256.HashData(assets["subtitles-tool.js"]))[..12];
         app.Use(async (context, following) =>
         {
             var baseUrl = configuration.GetNetworkConfiguration().BaseUrl.TrimEnd('/');
@@ -44,7 +46,7 @@ public sealed class WebIntegration(IServerConfigurationManager configuration) : 
             var html = await File.ReadAllTextAsync(indexPath, context.RequestAborted);
             var marker = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
             if (marker < 0) { await following(); return; }
-            var url = System.Net.WebUtility.HtmlEncode(baseUrl + "/SubtitlesTool/ui.js?v=" + version);
+            var url = System.Net.WebUtility.HtmlEncode(baseUrl + "/SubtitlesTool/ui.js?v=" + version + "&content=" + entryHash);
             html = html.Insert(marker, $"<script type=\"module\" src=\"{url}\"></script>");
             context.Response.ContentType = "text/html; charset=utf-8";
             context.Response.Headers.CacheControl = "no-cache, no-store";

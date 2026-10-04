@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.4.1.0</Version>
+    <Version>0.5.0.0</Version>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
@@ -12,8 +12,18 @@
     <PackageReference Include="Jellyfin.Controller" Version="10.11.11" ExcludeAssets="runtime" />
     <PackageReference Include="Jellyfin.Model" Version="10.11.11" ExcludeAssets="runtime" />
     <PackageReference Include="AngleSharp" Version="1.8.3" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <PackageReference Include="UTF.Unknown" Version="2.7.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
     <EmbeddedResource Include="../../webui/dist/*.js" LogicalName="SubtitlesTool.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Configuration/configPage.html" LogicalName="SubtitlesTool.Configuration" />
+    <EmbeddedResource Include="../../artifacts/speech/manifest.json" LogicalName="SubtitlesTool.SpeechAssets" />
+    <None Include="../../artifacts/speech/speech-assets.zip" Link="speech-assets.zip" CopyToOutputDirectory="PreserveNewest" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Jellyfin.Plugin.SubtitlesTool.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <EmbeddedResource Include="../../artifacts/speech/silero-vad.onnx" LogicalName="SubtitlesTool.VoiceModel" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.ml.onnxruntime/1.22.1/runtimes/linux-x64/native/libonnxruntime.so" LogicalName="SubtitlesTool.ort.linux-x64" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.ml.onnxruntime/1.22.1/runtimes/win-x64/native/onnxruntime.dll" LogicalName="SubtitlesTool.ort.win-x64" />
   </ItemGroup>
 </Project>

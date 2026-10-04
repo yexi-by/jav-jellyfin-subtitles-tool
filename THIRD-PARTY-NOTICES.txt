@@ -15,4 +15,36 @@ Copyright (c) 2017 Dailymotion；包含 Copyright (c) 2013-2015 Brightcove 的�
 源码：https://github.com/video-dev/hls.js/tree/v1.7.3
 Apache License 2.0。原始声明：third-party/hls.js-NOTICE.txt；许可全文：third-party/Apache-2.0.txt
 
-上述依赖均未修改。项目自身的许可见 LICENSE。
+SenseVoiceSmall int8 用于本地识别实际台词及字词时间戳。
+原模型：FunAudioLLM/SenseVoiceSmall（FunASR/Alibaba）。模型权重及衍生量化版本适用 FunASR Model Open Source License Agreement 1.1，许可全文：third-party/SenseVoice-MODEL-LICENSE.txt
+模型与原生程序固定来源及 SHA256：scripts/fetch-speech.ps1
+ONNX 量化包：sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17。
+sherpa-onnx 1.13.8 提供 Linux x64、Windows x64 CPU 识别程序，采用 Apache License 2.0；许可全文：third-party/Apache-2.0.txt
+源码：https://github.com/k2-fsa/sherpa-onnx/tree/v1.13.8
+其发行包的 ONNX Runtime 原生库随识别组件保存，许可及上游第三方声明同下文 ONNX Runtime。
+
+multilingual-e5-small 用于本地筛选候选，仅用于检索，不作为对应成功的证据。
+原模型：intfloat/multilingual-e5-small，固定版本 fd1525a9fd15316a2d503bf26ab031a61d056e98；MIT License。
+ONNX int8：Xenova/multilingual-e5-small，固定版本 761b726dd34fb83930e26aab4e9ac3899aa1fa78；保留该转换、量化版本。
+原模型来源：https://huggingface.co/intfloat/multilingual-e5-small
+原项目：https://github.com/microsoft/unilm/tree/master/e5
+许可全文：third-party/multilingual-e5-MIT.txt
+
+Microsoft.ML.Tokenizers 2.0.0 读取模型的 SentencePiece tokenizer；MIT License。
+源码：https://github.com/dotnet/machinelearning/tree/v5.0.0；许可全文：third-party/Microsoft-ML-Tokenizers-MIT.txt
+Google.Protobuf 3.30.2 为其依赖；BSD 3-Clause License。
+源码：https://github.com/protocolbuffers/protobuf/tree/v30.2；许可全文：third-party/Google-Protobuf-BSD.txt
+
+Silero VAD 使用 16 kHz ONNX 模型切分音频并跳过静音，不作为对白对应的证据。
+固定源码：https://github.com/snakers4/silero-vad/tree/1e261b036686cd0017d500ee96acd1c4ba572a9d
+模型：src/silero_vad/data/silero_vad_16k_op15.onnx
+SHA256：7ED98DDBAD84CCAC4CD0AEB3099049280713DF825C610A8ED34543318F1B2C49
+Copyright (c) 2020-present Silero Team。MIT License；许可全文：third-party/Silero-VAD-MIT.txt
+
+Microsoft.ML.OnnxRuntime 1.22.1 以 CPU 执行 VAD 和候选筛选，包含 Linux x64 和 Windows x64 原生运行库。
+源码：https://github.com/microsoft/onnxruntime/tree/v1.22.1
+MIT License。许可全文：third-party/ONNX-Runtime-MIT.txt；上游第三方声明：third-party/ONNX-Runtime-NOTICES.txt
+System.Numerics.Tensors 9.0.0 为其托管依赖，来自 .NET，采用 MIT License。
+源码：https://github.com/dotnet/runtime/tree/v9.0.0；许可全文：third-party/System-Numerics-Tensors-MIT.txt
+
+上述运行程序与托管依赖保持发行原样，模型采用上述固定的转换或量化资源。项目自身的许可见 LICENSE。

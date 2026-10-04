@@ -1,6 +1,6 @@
 <!doctype html>
 <html><head><title>JAV Subtitles Tool</title></head><body>
-<div id="javSubtitlesConfig" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea">
+<div id="javSubtitlesConfig" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea,emby-input">
     <div data-role="content"><div class="content-primary">
         <form id="javSubtitlesConfigForm">
             <h2>JAV Subtitles Tool</h2>
@@ -10,6 +10,11 @@
                 <div class="fieldDescription">每行填写一个 Jellyfin 服务器内的媒体根目录。Docker 部署请填写容器内路径。详情页入口、分段搜索和指纹计划任务都使用这些路径；留空时暂停处理媒体。</div>
             </div>
             <p>迅雷展示全部候选；SubtitleCat 在搜索面板单独选择语言。字幕下载后可打开校准面板，对齐并保存。</p>
+            <h3>自动校准的 LLM 设置</h3>
+            <div class="inputContainer"><label class="inputLabel" for="javLlmBase">API Base URL</label><input is="emby-input" id="javLlmBase" type="url" placeholder="https://api.deepseek.com" /><div class="fieldDescription">填写 Chat Completions 基础地址，可包含 /v1。音频在服务器本地识别，接口只接收少量台词和字幕候选。</div></div>
+            <div class="inputContainer"><label class="inputLabel" for="javLlmKey">API Key</label><input is="emby-input" id="javLlmKey" type="password" autocomplete="new-password" /></div>
+            <div class="inputContainer"><label class="inputLabel" for="javLlmModel">模型名称</label><input is="emby-input" id="javLlmModel" placeholder="deepseek-flash" /></div>
+            <div class="inputContainer"><label class="inputLabel" for="javLlmParameters">自定义 JSON 请求参数</label><textarea is="emby-textarea" id="javLlmParameters" rows="5" placeholder="{}"></textarea><div class="fieldDescription">顶层参数覆盖默认值，嵌套对象保持原样；推理和服务商扩展参数按所选模型的支持情况填写。model、messages、stream、n 由插件设置。输出上限为 4096 token；未填写推理参数时沿用服务商默认设置。</div></div>
             <button is="emby-button" type="submit" class="raised button-submit block"><span>保存设置</span></button>
         </form>
     </div></div>
@@ -18,12 +23,26 @@
         document.querySelector('#javSubtitlesConfig').addEventListener('viewshow', function () {
             ApiClient.getPluginConfiguration(javPluginId).then(function (config) {
                 document.querySelector('#javMediaRoots').value = (config.MediaRoots || []).join('\n');
+                document.querySelector('#javLlmBase').value = config.LlmApiBaseUrl || '';
+                document.querySelector('#javLlmKey').value = config.LlmApiKey || '';
+                document.querySelector('#javLlmModel').value = config.LlmModel || '';
+                document.querySelector('#javLlmParameters').value = config.LlmParameters || '{}';
             });
         });
         document.querySelector('#javSubtitlesConfigForm').addEventListener('submit', function (event) {
             event.preventDefault();
+            var parameters = document.querySelector('#javLlmParameters').value.trim() || '{}';
+            try {
+                var parsed = JSON.parse(parameters);
+                if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
+                if (['model','messages','stream','n'].some(function (key) { return Object.hasOwn(parsed, key); })) throw new Error();
+            } catch (_) { Dashboard.alert('自定义参数需要是 JSON 对象，且不能包含 model、messages、stream、n。'); return; }
             ApiClient.getPluginConfiguration(javPluginId).then(function (config) {
                 config.MediaRoots = document.querySelector('#javMediaRoots').value.split(/\r?\n/).map(function (value) { return value.trim(); }).filter(Boolean);
+                config.LlmApiBaseUrl = document.querySelector('#javLlmBase').value.trim();
+                config.LlmApiKey = document.querySelector('#javLlmKey').value.trim();
+                config.LlmModel = document.querySelector('#javLlmModel').value.trim();
+                config.LlmParameters = parameters;
                 return ApiClient.updatePluginConfiguration(javPluginId, config);
             }).then(Dashboard.processPluginConfigurationUpdateResult);
         });
