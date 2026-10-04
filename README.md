@@ -20,6 +20,8 @@ https://raw.githubusercontent.com/yexi-by/jav-jellyfin-subtitles-tool/main/manif
 
 自动校准支持 Linux x64、Windows x64。完整发行包包含 SenseVoiceSmall int8、sherpa-onnx 1.13.8 CPU 程序及 multilingual-e5-small int8 候选筛选模型，无需安装 Python 或 GPU 环境。FFmpeg／FFprobe 使用 Jellyfin 的配置，视频始终只读。
 
+N100 的本地组件选择及与 ReazonSpeech、Kotoba 的实机对照见[本地识别选型记录](docs/local-asr-selection.md)。当前采用自动语言、两个 CPU 线程和单任务运行，模型识别与具体字幕对应均需核对后保存。
+
 在插件设置填写 **API Base URL、API Key、模型名称**，使用 OpenAI 兼容的 Chat Completions 接口。例如 DeepSeek 的基础地址为 `https://api.deepseek.com`，模型 ID 为 `deepseek-flash`。自定义参数填写 JSON 对象，顶层覆盖默认值并保留嵌套内容，可配置服务商支持的推理参数及扩展字段；`model`、`messages`、`stream`、`n` 由插件设置。未指定推理参数时沿用服务商默认值。输出上限为 4096 token；未配置或调用失败时仍可手动校准。
 
 ## 搜索和下载
