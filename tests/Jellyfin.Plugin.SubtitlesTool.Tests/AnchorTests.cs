@@ -176,6 +176,45 @@ public sealed class AnchorTests
     }
 
     [Fact]
+    public async Task CustomHeadersAndDisabledThinkingAreSentAgainOnNetworkRetry()
+    {
+        var calls = 0;
+        using var http = new HttpClient(new Handler(request =>
+        {
+            Assert.Equal("https://opencode.ai/zen/go/v1/chat/completions", request.RequestUri!.ToString());
+            Assert.Equal("session-test", Assert.Single(request.Headers.GetValues("x-opencode-session")));
+            Assert.Equal("jellyfin-jav-subtitles/test", Assert.Single(request.Headers.GetValues("User-Agent")));
+            Assert.Equal("Bearer", request.Headers.Authorization!.Scheme);
+            Assert.Equal("test-only", request.Headers.Authorization.Parameter);
+            var body = JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!;
+            Assert.Equal("deepseek-v4.1-flash", body["model"]!.GetValue<string>());
+            Assert.Equal("disabled", body["thinking"]!["type"]!.GetValue<string>());
+            Assert.Null(body["headers"]);
+            return ++calls == 1 ? new(HttpStatusCode.ServiceUnavailable) : new(HttpStatusCode.OK)
+                { Content = new StringContent("""{"choices":[{"message":{"content":"{\"matches\":[]}"}}]}""") };
+        }));
+        var config = new Configuration { LlmApiBaseUrl = "https://opencode.ai/zen/go/v1", LlmApiKey = "test-only", LlmModel = "deepseek-v4.1-flash",
+            LlmParameters = """{"thinking":{"type":"disabled"}}""", LlmHeaders = """{"x-opencode-session":"session-test","User-Agent":"jellyfin-jav-subtitles/test"}""" };
+        Assert.Null(AnchorMatcher.ConfigurationError(config));
+        var matcher = new AnchorMatcher(http, config);
+        Assert.Empty(await matcher.MatchAsync(Speech(), Cues(), Cues(), default));
+        Assert.Equal(2, calls);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"x-opencode-session\":1}")]
+    [InlineData("{\"bad header\":\"value\"}")]
+    [InlineData("{\"Authorization\":\"replacement\"}")]
+    [InlineData("{\"x-opencode-session\":\"first\\r\\nsecond\"}")]
+    public void InvalidCustomHeadersAreReportedBeforeAnalysis(string headers)
+    {
+        var error = AnchorMatcher.ConfigurationError(new Configuration { LlmApiBaseUrl = "https://api.example.test", LlmApiKey = "test-only", LlmModel = "test", LlmHeaders = headers });
+        Assert.NotNull(error);
+        Assert.Contains("请求头", error);
+    }
+
+    [Fact]
     public async Task NetworkRetryAndPhraseReviewShareThePerClipBudget()
     {
         var calls = 0;

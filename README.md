@@ -26,6 +26,23 @@ N100 的本地组件选择及与 ReazonSpeech、Kotoba 的实机对照见[本地
 
 在插件设置填写 **API Base URL、API Key、模型名称**，使用 OpenAI 兼容的 Chat Completions 接口。例如 DeepSeek 的基础地址为 `https://api.deepseek.com`，模型 ID 为 `deepseek-flash`。自定义参数填写 JSON 对象，顶层覆盖默认值并保留嵌套内容，可配置服务商支持的推理参数及扩展字段；`model`、`messages`、`stream`、`n` 由插件设置。未指定推理参数时沿用服务商默认值。输出上限为 4096 token；未配置或调用失败时仍可手动校准。
 
+**0.5.0.2** 增加独立的“自定义 HTTP 请求头（JSON）”设置。填写名称与字符串值组成的 JSON 对象，请求头随每次 LLM 请求及重试发送；留空时使用 `{}`。Authorization、Content-Type、Content-Length、Host 由插件设置。
+
+使用 [OpenCode Go](https://opencode.ai/docs/go/) 时，API Base URL 填写 `https://opencode.ai/zen/go/v1`，模型名称填写 `deepseek-v4.1-flash`。关闭思考的自定义请求参数为：
+
+```json
+{"thinking":{"type":"disabled"}}
+```
+
+在自定义 HTTP 请求头中填写稳定的会话标识和客户端名称，例如：
+
+```json
+{
+  "x-opencode-session": "jellyfin-jav-subtitles",
+  "User-Agent": "jellyfin-jav-subtitles/0.5.0.2"
+}
+```
+
 ## 搜索和下载
 
 1. 在详情页点击 **JAV 字幕**，选择视频版本及需要处理的分段。
@@ -133,6 +150,6 @@ pwsh -File scripts/package.ps1
 
 前端构建在后端构建之前执行；页面脚本和按需加载的校准模块嵌入插件 DLL。资源脚本下载并校验固定来源的原生程序、模型和 tokenizer，打包时也会核验。安装包包含主程序集、托管依赖、`speech-assets.zip`、依赖说明和许可文件；资源清单嵌入程序集，使用时逐文件核对大小及 SHA256 并提取到缓存。原生 DLL 保存在资源包和缓存中，避免服务器将它们当作插件扫描。
 
-推送与项目版本一致的标签，例如 `v0.5.0.1`，GitHub Actions 会检查、打包、发布 Release 并更新插件清单。内部程序集名称、插件 GUID 和计划任务类型保持稳定，用于连续升级。Web 集成只修改入口响应，不修改磁盘上的 Jellyfin Web 文件。
+推送与项目版本一致的标签，例如 `v0.5.0.2`，GitHub Actions 会检查、打包、发布 Release 并更新插件清单。内部程序集名称、插件 GUID 和计划任务类型保持稳定，用于连续升级。Web 集成只修改入口响应，不修改磁盘上的 Jellyfin Web 文件。
 
 项目采用 GPL-3.0。第三方来源和许可见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。插件的安装、启动及升级均不会批量删除媒体目录中已有的字幕。

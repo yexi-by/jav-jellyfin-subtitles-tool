@@ -18,6 +18,7 @@ public sealed class Configuration : BasePluginConfiguration
     public string LlmApiKey { get; set; } = "";
     public string LlmModel { get; set; } = "";
     public string LlmParameters { get; set; } = "{}";
+    public string LlmHeaders { get; set; } = "{}";
 }
 
 public sealed class Plugin : BasePlugin<Configuration>, IHasWebPages

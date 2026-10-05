@@ -38,7 +38,7 @@ public sealed class SubtitleAligner(IMediaEncoder encoder, SubtitleStore subtitl
     public async Task<AlignmentStatus> StartAsync(MediaTarget target, string subtitleId, string hash, string stamp, int? audioIndex, long? startMilliseconds, CancellationToken token)
     {
         var current = Plugin.Instance?.Configuration ?? new();
-        var config = new Configuration { LlmApiBaseUrl = current.LlmApiBaseUrl, LlmApiKey = current.LlmApiKey, LlmModel = current.LlmModel, LlmParameters = current.LlmParameters };
+        var config = new Configuration { LlmApiBaseUrl = current.LlmApiBaseUrl, LlmApiKey = current.LlmApiKey, LlmModel = current.LlmModel, LlmParameters = current.LlmParameters, LlmHeaders = current.LlmHeaders };
         if (AnchorMatcher.ConfigurationError(config) is { } error) throw new ToolException(error);
         if (!_worker.Wait(0)) throw new ToolException("服务器正在分析另一份字幕，请等待或取消该任务。", 409);
         try

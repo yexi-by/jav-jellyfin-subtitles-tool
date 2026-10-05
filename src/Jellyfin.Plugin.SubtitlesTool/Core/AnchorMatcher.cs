@@ -41,7 +41,7 @@ internal sealed class AnchorMatcher(HttpClient http, Configuration configuration
     public static string? ConfigurationError(Configuration config)
     {
         if (string.IsNullOrWhiteSpace(config.LlmApiBaseUrl) || string.IsNullOrWhiteSpace(config.LlmApiKey) || string.IsNullOrWhiteSpace(config.LlmModel)) return "请在插件设置中填写 LLM API 地址、API Key 和模型名，再使用自动对齐。手动校准可继续使用。";
-        try { BuildRequest(config, "{}"); Endpoint(config.LlmApiBaseUrl); }
+        try { BuildRequest(config, "{}"); Endpoint(config.LlmApiBaseUrl); using var request = new HttpRequestMessage(); ApplyHeaders(request, config); }
         catch (ToolException ex) { return ex.Message; }
         return null;
     }
@@ -78,6 +78,27 @@ internal sealed class AnchorMatcher(HttpClient http, Configuration configuration
         }
         body["messages"] = messages;
         return body;
+    }
+
+    internal static void ApplyHeaders(HttpRequestMessage request, Configuration config)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(config.LlmHeaders) ? "{}" : config.LlmHeaders);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var header in document.RootElement.EnumerateObject())
+            {
+                if (header.Value.ValueKind != JsonValueKind.String || !names.Add(header.Name)) throw new JsonException();
+                if (new[] { "Authorization", "Content-Type", "Content-Length", "Host" }.Contains(header.Name, StringComparer.OrdinalIgnoreCase))
+                    throw new ToolException("Authorization、Content-Type、Content-Length、Host 由插件设置，请从自定义请求头中移除。");
+                var value = header.Value.GetString()!;
+                if (value.IndexOfAny(['\r', '\n', '\0']) >= 0 || !request.Headers.TryAddWithoutValidation(header.Name, value)) throw new FormatException();
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or ArgumentException)
+        { throw new ToolException("LLM 自定义请求头需要是有效的 JSON 对象，名称符合 HTTP 格式，值使用不含换行的字符串，每个名称只填写一次。"); }
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.LlmApiKey.Trim());
     }
 
     public async Task<AlignmentAnchor[]> MatchAsync(SpeechText speech, IReadOnlyList<SubtitleCue> candidates, IReadOnlyList<SubtitleCue> allCues, CancellationToken token)
@@ -151,7 +172,7 @@ internal sealed class AnchorMatcher(HttpClient http, Configuration configuration
             _requests++;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(60));
             using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint(configuration.LlmApiBaseUrl));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration.LlmApiKey.Trim());
+            ApplyHeaders(request, configuration);
             request.Content = new StringContent(BuildRequest(configuration, business, previous, failure).ToJsonString(), Encoding.UTF8, "application/json");
             try
             {
