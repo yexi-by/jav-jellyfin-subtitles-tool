@@ -1,20 +1,20 @@
 [
   {
-    "description": "聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持下载替换及字幕校准。",
-    "guid": "c4b75732-8527-4f58-9cdf-18efca21a9e5",
-    "category": "Metadata",
-    "name": "JAV Subtitles Tool",
-    "overview": "预览后校准当前唯一字幕，视频始终只读。",
     "versions": [
       {
-        "changelog": "自动校准使用本地 CPU 识别实际台词、LLM 确认具体字幕对应，再计算固定偏移；支持输出校验、错误反馈、有限重试、自定义参数、对白预览、音轨选择和取消。完整移除视频裁切，视频始终只读。保留单字幕替换及手动校准。",
-        "sourceUrl": "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v0.5.0.0/jav-jellyfin-subtitles-tool_0.5.0.0.zip",
-        "checksum": "9BCFBCDFF5F5FD1623B4547FD955D549",
-        "timestamp": "2026-10-04T17:58:22Z",
-        "version": "0.5.0.0",
-        "targetAbi": "10.11.11.0"
+        "sourceUrl": "https://github.com/yexi-by/jav-jellyfin-subtitles-tool/releases/download/v0.5.0.1/jav-jellyfin-subtitles-tool_0.5.0.1.zip",
+        "checksum": "71280EC1113A33900CD49ADCFA255D43",
+        "timestamp": "2026-10-05T09:51:23Z",
+        "version": "0.5.0.1",
+        "targetAbi": "10.11.11.0",
+        "changelog": "修复点击插件设置后黑屏：设置页资源按 HTML 登记，Jellyfin 正确返回页面类型并回填现有配置。保留聚合搜索、下载替换、手动校准及 ASR／LLM 自动校准。"
       }
     ],
-    "owner": "yexi-by"
+    "guid": "c4b75732-8527-4f58-9cdf-18efca21a9e5",
+    "description": "聚合迅雷与 SubtitleCat，按番号和分段搜索字幕，支持下载替换及字幕校准。",
+    "name": "JAV Subtitles Tool",
+    "owner": "yexi-by",
+    "overview": "预览后校准当前唯一字幕，视频始终只读。",
+    "category": "Metadata"
   }
 ]
