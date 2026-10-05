@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.5.0.0</Version>
+    <Version>0.5.0.1</Version>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
@@ -16,7 +16,7 @@
     <PackageReference Include="UTF.Unknown" Version="2.7.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
     <EmbeddedResource Include="../../webui/dist/*.js" LogicalName="SubtitlesTool.%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Configuration/configPage.html" LogicalName="SubtitlesTool.Configuration" />
+    <EmbeddedResource Include="Configuration/configPage.html" LogicalName="SubtitlesTool.Configuration.html" />
     <EmbeddedResource Include="../../artifacts/speech/manifest.json" LogicalName="SubtitlesTool.SpeechAssets" />
     <None Include="../../artifacts/speech/speech-assets.zip" Link="speech-assets.zip" CopyToOutputDirectory="PreserveNewest" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">

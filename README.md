@@ -12,7 +12,9 @@
 https://raw.githubusercontent.com/yexi-by/jav-jellyfin-subtitles-tool/main/manifest.json
 ```
 
-安装 **JAV Subtitles Tool**，重启 Jellyfin 并重新加载网页。已有 Subtitles Tool 用户通过相同插件 GUID 升级。
+安装 **JAV Subtitles Tool**，重启 Jellyfin 并重新加载网页。已有 Subtitles Tool 用户通过相同插件 GUID 升级。在 **控制台 → 插件 → JAV Subtitles Tool → 设置** 配置处理路径和 LLM。
+
+**0.5.0.1** 修复设置页黑屏：页面资源使用 `.html` 后缀，使 Jellyfin 按 `text/html` 返回并正常加载设置。升级保留已有配置。
 
 在插件设置的“处理路径”中，每行填写一个媒体根目录。Docker 部署填写容器内路径，例如 `/media/JAV`。留空时暂停处理媒体；详情页入口、搜索、下载、校准及指纹任务使用同一范围。
 
@@ -131,6 +133,6 @@ pwsh -File scripts/package.ps1
 
 前端构建在后端构建之前执行；页面脚本和按需加载的校准模块嵌入插件 DLL。资源脚本下载并校验固定来源的原生程序、模型和 tokenizer，打包时也会核验。安装包包含主程序集、托管依赖、`speech-assets.zip`、依赖说明和许可文件；资源清单嵌入程序集，使用时逐文件核对大小及 SHA256 并提取到缓存。原生 DLL 保存在资源包和缓存中，避免服务器将它们当作插件扫描。
 
-推送与项目版本一致的标签，例如 `v0.5.0.0`，GitHub Actions 会检查、打包、发布 Release 并更新插件清单。内部程序集名称、插件 GUID 和计划任务类型保持稳定，用于连续升级。Web 集成只修改入口响应，不修改磁盘上的 Jellyfin Web 文件。
+推送与项目版本一致的标签，例如 `v0.5.0.1`，GitHub Actions 会检查、打包、发布 Release 并更新插件清单。内部程序集名称、插件 GUID 和计划任务类型保持稳定，用于连续升级。Web 集成只修改入口响应，不修改磁盘上的 Jellyfin Web 文件。
 
 项目采用 GPL-3.0。第三方来源和许可见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。插件的安装、启动及升级均不会批量删除媒体目录中已有的字幕。

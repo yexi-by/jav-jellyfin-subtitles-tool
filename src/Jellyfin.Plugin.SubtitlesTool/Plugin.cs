@@ -27,7 +27,7 @@ public sealed class Plugin : BasePlugin<Configuration>, IHasWebPages
     public override string Name => "JAV Subtitles Tool";
     public override Guid Id => Guid.Parse("c4b75732-8527-4f58-9cdf-18efca21a9e5");
     public override string Description => "按番号和分段聚合字幕，支持下载替换及字幕校准。";
-    public IEnumerable<PluginPageInfo> GetPages() => [new() { Name = "jav-subtitles-tool", EmbeddedResourcePath = "SubtitlesTool.Configuration" }];
+    public IEnumerable<PluginPageInfo> GetPages() => [new() { Name = "jav-subtitles-tool", EmbeddedResourcePath = "SubtitlesTool.Configuration.html" }];
 }
 
 public sealed class Registrator : IPluginServiceRegistrator
